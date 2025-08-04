@@ -1,0 +1,209 @@
+version: '3.8'
+
+services:
+  # Redis para cache y sesiones
+  redis:
+    image: redis:7-alpine
+    container_name: fut-manager-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - fut-manager-network
+
+  # Gateway Service - API Gateway
+  gateway-service:
+    build:
+      context: .
+      dockerfile: ./services/gateway-service/Dockerfile
+    container_name: fut-manager-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - TEAM_SERVICE_URL=http://team-service:3002
+      - SANCTION_SERVICE_URL=http://sanction-service:3003
+      - AUDIT_SERVICE_URL=http://audit-service:3004
+    depends_on:
+      - redis
+      - auth-service
+      - team-service
+      - sanction-service
+      - audit-service
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+  # Auth Service - Autenticación y Autorización
+  auth-service:
+    build:
+      context: .
+      dockerfile: ./services/auth-service/Dockerfile
+    container_name: fut-manager-auth
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=redis://redis:6379
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - AUDIT_SERVICE_URL=http://audit-service:3004
+    depends_on:
+      - redis
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+  # Team Service - Gestión de Equipos y Jugadores
+  team-service:
+    build:
+      context: .
+      dockerfile: ./services/team-service/Dockerfile
+    container_name: fut-manager-team
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - AUDIT_SERVICE_URL=http://audit-service:3004
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+  # Sanction Service - Gestión de Sanciones  
+  sanction-service:
+    build:
+      context: .
+      dockerfile: ./services/sanction-service/Dockerfile
+    container_name: fut-manager-sanction
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - AUDIT_SERVICE_URL=http://audit-service:3004
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+  # Audit Service - Auditoría y Logs
+  audit-service:
+    build:
+      context: .
+      dockerfile: ./services/audit-service/Dockerfile
+    container_name: fut-manager-audit
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+    volumes:
+      - audit_logs:/app/logs
+
+  # Frontend - React Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fut-manager-frontend
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=http://localhost:3000
+      - REACT_APP_SUPABASE_URL=${SUPABASE_URL}
+      - REACT_APP_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+    depends_on:
+      - gateway-service
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+  # Nginx - Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: fut-manager-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - gateway-service
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+  # Prometheus - Métricas
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fut-manager-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+  # Grafana - Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fut-manager-grafana
+    ports:
+      - "3006:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+networks:
+  fut-manager-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  audit_logs:
+  prometheus_data:
+  grafana_data:
