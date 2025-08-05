@@ -59,7 +59,6 @@ setup_env_files() {
         "services/auth-service/.env"
         "services/team-service/.env"
         "services/sanction-service/.env"
-        "services/audit-service/.env"
         "frontend/.env"
     )
     
@@ -129,7 +128,6 @@ check_services() {
         "auth-service:3001"
         "team-service:3002"
         "sanction-service:3003"
-        "audit-service:3004"
         "frontend:80"
     )
     
@@ -163,7 +161,6 @@ show_final_info() {
     echo "   Auth Service: http://localhost:3001"
     echo "   Team Service: http://localhost:3002"
     echo "   Sanction Service: http://localhost:3003"
-    echo "   Audit Service: http://localhost:3004"
     echo ""
     echo "📊 Monitoreo:"
     echo "   Prometheus: http://localhost:9090"
@@ -189,7 +186,8 @@ show_final_info() {
     echo "   ✅ Control de acceso basado en roles"
     echo "   ✅ Validación de contraseñas fuertes"
     echo "   ✅ Limitación de intentos de login"
-    echo "   ✅ Auditoría completa de actividades"
+    echo "   echo "   ✅ Gestión de equipos"
+    echo "   ✅ Sistema de sanciones""
     echo "   ✅ Verificación de integridad de archivos"
     echo "   ✅ Headers de seguridad"
     echo "   ✅ Y 11 medidas de seguridad más..."

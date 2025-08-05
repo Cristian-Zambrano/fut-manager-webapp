@@ -29,38 +29,349 @@ const logger = winston.createLogger({
 });
 
 // Configuración de Swagger
-const swaggerOptions = {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'FutManager API Gateway',
-      version: '1.0.0',
-      description: 'API Gateway para el sistema de gestión de campeonatos FutManager',
-      contact: {
-        name: 'FutManager Team',
-        email: 'support@futmanager.com'
-      }
-    },
-    servers: [
-      {
-        url: `http://localhost:${PORT}`,
-        description: 'Servidor de desarrollo'
-      }
-    ],
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT'
-        }
+const swaggerSpec = {
+  openapi: '3.0.0',
+  info: {
+    title: 'FutManager API Gateway',
+    version: '1.0.0',
+    description: 'API Gateway para el sistema de gestión de campeonatos FutManager',
+    contact: {
+      name: 'FutManager Team',
+      email: 'support@futmanager.com'
+    }
+  },
+  servers: [
+    {
+      url: `http://localhost:${PORT}`,
+      description: 'Servidor de desarrollo'
+    }
+  ],
+  components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT'
       }
     }
   },
-  apis: ['./src/routes/*.js']
+  paths: {
+    '/health': {
+      get: {
+        tags: ['Sistema'],
+        summary: 'Verificar estado del Gateway',
+        description: 'Endpoint para verificar que el API Gateway está funcionando correctamente',
+        responses: {
+          '200': {
+            description: 'Gateway funcionando correctamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Gateway Service funcionando correctamente' },
+                    timestamp: { type: 'string', format: 'date-time' },
+                    uptime: { type: 'number', example: 123.45 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/auth/register': {
+      post: {
+        tags: ['Autenticación'],
+        summary: 'Registrar nuevo usuario',
+        description: 'Crea una nueva cuenta de usuario en el sistema',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  email: { type: 'string', format: 'email', example: 'usuario@example.com' },
+                  password: { type: 'string', minLength: 8, example: 'Password123!' },
+                  firstName: { type: 'string', example: 'Juan' },
+                  lastName: { type: 'string', example: 'Pérez' },
+                  birthDate: { type: 'string', format: 'date', example: '1990-01-15' }
+                },
+                required: ['email', 'password', 'firstName', 'lastName', 'birthDate']
+              }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Usuario registrado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Usuario registrado exitosamente' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        user: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string', example: 'uuid' },
+                            email: { type: 'string', example: 'usuario@example.com' },
+                            firstName: { type: 'string', example: 'Juan' },
+                            lastName: { type: 'string', example: 'Pérez' }
+                          }
+                        },
+                        token: { type: 'string', example: 'jwt.token.here' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '400': {
+            description: 'Datos de registro inválidos',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'Email ya está registrado' },
+                    errors: { type: 'array', items: { type: 'string' } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/auth/login': {
+      post: {
+        tags: ['Autenticación'],
+        summary: 'Iniciar sesión',
+        description: 'Autentica un usuario y devuelve un token JWT',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  email: { type: 'string', format: 'email', example: 'usuario@example.com' },
+                  password: { type: 'string', example: 'password123' }
+                },
+                required: ['email', 'password']
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Login exitoso',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Login exitoso' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        user: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string', example: 'uuid' },
+                            email: { type: 'string', example: 'usuario@example.com' },
+                            firstName: { type: 'string', example: 'Juan' },
+                            lastName: { type: 'string', example: 'Pérez' }
+                          }
+                        },
+                        token: { type: 'string', example: 'jwt.token.here' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': {
+            description: 'Credenciales inválidas',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'Credenciales inválidas' }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/teams': {
+      get: {
+        tags: ['Equipos'],
+        summary: 'Obtener todos los equipos',
+        description: 'Lista todos los equipos registrados en el sistema',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Lista de equipos obtenida exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string', example: 'uuid' },
+                          name: { type: 'string', example: 'Barcelona SC' },
+                          description: { type: 'string', example: 'Equipo de fútbol profesional' },
+                          createdAt: { type: 'string', format: 'date-time' }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      post: {
+        tags: ['Equipos'],
+        summary: 'Crear nuevo equipo',
+        description: 'Registra un nuevo equipo en el sistema',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', example: 'Barcelona SC' },
+                  description: { type: 'string', example: 'Equipo de fútbol profesional' }
+                },
+                required: ['name']
+              }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Equipo creado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Equipo creado exitosamente' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: 'uuid' },
+                        name: { type: 'string', example: 'Barcelona SC' },
+                        description: { type: 'string', example: 'Equipo de fútbol profesional' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/sanctions': {
+      get: {
+        tags: ['Sanciones'],
+        summary: 'Obtener todas las sanciones',
+        description: 'Lista todas las sanciones registradas en el sistema',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Lista de sanciones obtenida exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string', example: 'uuid' },
+                          playerId: { type: 'string', example: 'uuid' },
+                          type: { type: 'string', example: 'YELLOW_CARD' },
+                          description: { type: 'string', example: 'Falta antideportiva' },
+                          matchId: { type: 'string', example: 'uuid' },
+                          createdAt: { type: 'string', format: 'date-time' }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/services/status': {
+      get: {
+        tags: ['Sistema'],
+        summary: 'Estado de microservicios',
+        description: 'Verifica el estado de todos los microservicios conectados',
+        responses: {
+          '200': {
+            description: 'Estado de servicios obtenido exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Estado de servicios' },
+                    data: {
+                      type: 'object',
+                      additionalProperties: {
+                        type: 'object',
+                        properties: {
+                          status: { type: 'string', example: 'healthy' },
+                          url: { type: 'string', example: 'http://localhost:3001' },
+                          response: { type: 'object' }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 };
-
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 // Middleware de seguridad
 app.use(helmet({
@@ -112,10 +423,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -126,15 +433,50 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Test endpoint simple
+app.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Test endpoint funcionando',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Documentación Swagger
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  explorer: true,
+  swaggerOptions: {
+    displayRequestDuration: true,
+    tryItOutEnabled: true,
+    filter: true,
+    showExtensions: true,
+    showCommonExtensions: true
+  }
+}));
+
+// Endpoint para obtener el JSON de Swagger
+app.get('/swagger.json', (req, res) => {
+  logger.info('swagger.json endpoint called', { swaggerSpecType: typeof swaggerSpec, hasData: !!swaggerSpec });
+  res.setHeader('Content-Type', 'application/json');
+  
+  // Debug: verificar que swaggerSpec existe y tiene contenido
+  if (!swaggerSpec) {
+    logger.error('swaggerSpec is undefined or null');
+    return res.status(500).json({ error: 'Swagger specification not available' });
+  }
+  
+  if (!swaggerSpec.paths || Object.keys(swaggerSpec.paths).length === 0) {
+    logger.error('swaggerSpec.paths is empty or undefined', { paths: swaggerSpec.paths });
+  }
+  
+  res.send(swaggerSpec);
+});
 
 // Configuración de microservicios
 const services = {
   auth: process.env.AUTH_SERVICE_URL || 'http://localhost:3001',
   team: process.env.TEAM_SERVICE_URL || 'http://localhost:3002',
-  sanction: process.env.SANCTION_SERVICE_URL || 'http://localhost:3003',
-  audit: process.env.AUDIT_SERVICE_URL || 'http://localhost:3004'
+  sanction: process.env.SANCTION_SERVICE_URL || 'http://localhost:3003'
 };
 
 // Función para crear proxy con configuración común
@@ -153,9 +495,13 @@ const createServiceProxy = (target, pathRewrite = {}) => {
       });
     },
     onProxyReq: (proxyReq, req, res) => {
+      logger.info(`🔄 Proxying ${req.method} ${req.url} to ${target}${proxyReq.path}`);
       // Agregar headers adicionales si es necesario
       proxyReq.setHeader('X-Gateway-Request', 'true');
       proxyReq.setHeader('X-Request-ID', req.id || Date.now().toString());
+    },
+    onProxyRes: (proxyRes, req, res) => {
+      logger.info(`✅ Proxy response from ${target}: ${proxyRes.statusCode}`);
     }
   });
 };
@@ -179,11 +525,6 @@ app.use('/api/players', createServiceProxy(services.team, {
 // Sanction Service
 app.use('/api/sanctions', createServiceProxy(services.sanction, {
   '^/api/sanctions': '/api/sanctions'
-}));
-
-// Audit Service - solo para admins (se maneja en el servicio)
-app.use('/api/audit', createServiceProxy(services.audit, {
-  '^/api/audit': '/api/audit'
 }));
 
 // Endpoint para obtener información de servicios

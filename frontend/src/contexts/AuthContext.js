@@ -7,33 +7,73 @@ const AuthContext = createContext();
 // Configuración de Axios
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
 
-// Interceptor para incluir token en requests
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+// Configurar interceptores de Axios
+const setupAxiosInterceptors = () => {
+  // Interceptor para incluir token en requests
+  axios.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      // Asegurar que la URL base sea correcta
+      if (!config.url.startsWith('http')) {
+        config.url = `${API_BASE_URL}${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
     }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+  );
 
-// Interceptor para manejar respuestas y errores
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token expirado o inválido
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+  // Interceptor para manejar respuestas y errores
+  axios.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config;
+      
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true;
+        
+        // Intentar refrescar token
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (refreshToken) {
+          try {
+            const refreshResponse = await axios.post('/auth/refresh', {
+              refresh_token: refreshToken
+            });
+            
+            const { access_token, refresh_token: newRefreshToken } = refreshResponse.data.data;
+            localStorage.setItem('access_token', access_token);
+            localStorage.setItem('refresh_token', newRefreshToken);
+            
+            // Reintentar request original
+            originalRequest.headers.Authorization = `Bearer ${access_token}`;
+            return axios(originalRequest);
+          } catch (refreshError) {
+            // Refresh falló, hacer logout
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          }
+        } else {
+          // No hay refresh token, hacer logout
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+        }
+      }
+      
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
-  }
-);
+  );
+};
+
+// Inicializar interceptores
+setupAxiosInterceptors();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -42,7 +82,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // Verificar si hay token al cargar la aplicación
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     const userData = localStorage.getItem('user');
     
     if (token && userData) {
@@ -50,36 +90,62 @@ export function AuthProvider({ children }) {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
         setIsAuthenticated(true);
+        
+        // Validar token con el servidor
+        validateToken();
       } catch (error) {
         console.error('Error parsing user data:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        clearAuthData();
       }
     }
     
     setLoading(false);
   }, []);
 
+  const clearAuthData = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    setUser(null);
+    setIsAuthenticated(false);
+  };
+
+  const validateToken = async () => {
+    try {
+      const response = await axios.get('/auth/test-auth');
+      if (response.data.success) {
+        setUser(response.data.data.user);
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      console.error('Token validation failed:', error);
+      clearAuthData();
+    }
+  };
+
   const login = async (email, password) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+      const response = await axios.post('/auth/login', {
         email,
         password
       });
 
-      const { token, user: userData } = response.data.data;
-      
-      // Guardar en localStorage
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      // Actualizar estado
-      setUser(userData);
-      setIsAuthenticated(true);
-      
-      toast.success(`¡Bienvenido ${userData.firstName}!`);
-      
-      return { success: true };
+      if (response.data.success) {
+        const { access_token, refresh_token, user: userData } = response.data.data;
+        
+        // Guardar tokens y user data
+        localStorage.setItem('access_token', access_token);
+        localStorage.setItem('refresh_token', refresh_token);
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Actualizar estado
+        setUser(userData);
+        setIsAuthenticated(true);
+        
+        toast.success(`¡Bienvenido ${userData.user_metadata?.firstName || userData.email}!`);
+        
+        return { success: true };
+      }
     } catch (error) {
       console.error('Login error:', error);
       
@@ -96,11 +162,12 @@ export function AuthProvider({ children }) {
 
   const register = async (userData) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/register`, userData);
+      const response = await axios.post('/auth/register', userData);
       
-      toast.success('Registro exitoso. Revisa tu email para activar tu cuenta.');
-      
-      return { success: true };
+      if (response.data.success) {
+        toast.success('Registro exitoso. Revisa tu email para activar tu cuenta.');
+        return { success: true };
+      }
     } catch (error) {
       console.error('Register error:', error);
       
@@ -115,12 +182,36 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setIsAuthenticated(false);
-    toast.info('Sesión cerrada correctamente');
+  const logout = async () => {
+    try {
+      await axios.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      clearAuthData();
+      toast.info('Sesión cerrada correctamente');
+    }
+  };
+
+  const resetPassword = async (email) => {
+    try {
+      const response = await axios.post('/auth/reset-password', { email });
+      
+      if (response.data.success) {
+        toast.success('Se ha enviado un email para restablecer tu contraseña');
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Reset password error:', error);
+      
+      const errorMessage = error.response?.data?.message || 'Error al enviar email de recuperación';
+      toast.error(errorMessage);
+      
+      return { 
+        success: false, 
+        error: errorMessage
+      };
+    }
   };
 
   const updateUser = (updatedUser) => {
@@ -130,21 +221,27 @@ export function AuthProvider({ children }) {
 
   const hasRole = (roles) => {
     if (!user || !Array.isArray(roles)) return false;
-    return roles.includes(user.role);
+    
+    // Obtener rol del usuario (de profile o metadata)
+    const userRole = user.profile?.role || user.user_metadata?.role || 'jugador';
+    return roles.includes(userRole);
   };
 
   const hasPermission = (permission) => {
     if (!user) return false;
     
-    // Definir permisos por rol
+    // Obtener rol del usuario
+    const userRole = user.profile?.role || user.user_metadata?.role || 'jugador';
+    
+    // Definir permisos por rol (basado en nuestro sistema de roles)
     const rolePermissions = {
       admin: ['all'],
       vocal: ['manage_sanctions', 'view_teams', 'view_players', 'manage_files'],
-      capitán: ['manage_own_team', 'view_own_players', 'view_sanctions'],
+      capitan: ['manage_own_team', 'view_own_players', 'view_sanctions'],
       jugador: ['view_own_info', 'view_sanctions']
     };
     
-    const userPermissions = rolePermissions[user.role] || [];
+    const userPermissions = rolePermissions[userRole] || [];
     
     return userPermissions.includes('all') || userPermissions.includes(permission);
   };
@@ -156,6 +253,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    resetPassword,
     updateUser,
     hasRole,
     hasPermission

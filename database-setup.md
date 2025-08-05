@@ -1,4 +1,5 @@
-# Configuración de Base de Datos en Supabase
+# ConfigCREATE SCHEMA IF NOT EXISTS team_service;
+CREATE SCHEMA IF NOT EXISTS sanction_service;ción de Base de Datos en Supabase
 
 ## Paso 1: Crear Esquemas
 
@@ -164,45 +165,7 @@ CREATE TABLE sanction_service.team_sanctions (
 );
 ```
 
-### Audit Service Schema
 
-```sql
--- Tabla de logs de auditoría
-CREATE TABLE audit_service.audit_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID,
-    action VARCHAR(100) NOT NULL,
-    resource VARCHAR(100),
-    resource_id VARCHAR(100),
-    old_values JSONB,
-    new_values JSONB,
-    ip_address INET,
-    user_agent TEXT,
-    service_name VARCHAR(50),
-    endpoint VARCHAR(200),
-    method VARCHAR(10),
-    status_code INTEGER,
-    request_body JSONB,
-    response_body JSONB,
-    processing_time INTEGER, -- en milisegundos
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Tabla para integridad de archivos
-CREATE TABLE audit_service.file_integrity (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    file_name VARCHAR(255) NOT NULL,
-    file_path VARCHAR(500) NOT NULL,
-    file_hash VARCHAR(256) NOT NULL,
-    hash_algorithm VARCHAR(50) DEFAULT 'SHA256',
-    file_size BIGINT,
-    created_by UUID,
-    digital_signature TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    last_verified_at TIMESTAMP,
-    is_valid BOOLEAN DEFAULT true
-);
-```
 
 ## Paso 3: Crear Índices para Rendimiento
 
@@ -223,12 +186,6 @@ CREATE INDEX idx_team_players_player ON team_service.team_players(player_id);
 CREATE INDEX idx_player_sanctions_player ON sanction_service.player_sanctions(player_id);
 CREATE INDEX idx_team_sanctions_team ON sanction_service.team_sanctions(team_id);
 CREATE INDEX idx_sanctions_created_by ON sanction_service.player_sanctions(created_by);
-
--- Índices para audit_service
-CREATE INDEX idx_audit_logs_user ON audit_service.audit_logs(user_id);
-CREATE INDEX idx_audit_logs_action ON audit_service.audit_logs(action);
-CREATE INDEX idx_audit_logs_created_at ON audit_service.audit_logs(created_at);
-CREATE INDEX idx_file_integrity_hash ON audit_service.file_integrity(file_hash);
 ```
 
 ## Paso 4: Configurar Row Level Security (RLS)
@@ -236,21 +193,10 @@ CREATE INDEX idx_file_integrity_hash ON audit_service.file_integrity(file_hash);
 ```sql
 -- Habilitar RLS en tablas sensibles
 ALTER TABLE auth_service.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_service.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Política para que usuarios solo vean su propia información
 CREATE POLICY users_own_data ON auth_service.users
     FOR ALL USING (auth.uid() = id);
-
--- Política para que solo admins vean logs de auditoría
-CREATE POLICY admin_only_audit_logs ON audit_service.audit_logs
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM auth_service.users u 
-            JOIN auth_service.roles r ON u.role_id = r.id 
-            WHERE u.id = auth.uid() AND r.name = 'admin'
-        )
-    );
 ```
 
 ## Paso 5: Obtener Credenciales

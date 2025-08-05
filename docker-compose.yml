@@ -22,19 +22,17 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3000
       - REDIS_URL=redis://redis:6379
       - AUTH_SERVICE_URL=http://auth-service:3001
       - TEAM_SERVICE_URL=http://team-service:3002
       - SANCTION_SERVICE_URL=http://sanction-service:3003
-      - AUDIT_SERVICE_URL=http://audit-service:3004
     depends_on:
       - redis
       - auth-service
       - team-service
       - sanction-service
-      - audit-service
     networks:
       - fut-manager-network
     restart: unless-stopped
@@ -48,7 +46,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3001
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
@@ -58,7 +56,6 @@ services:
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASS=${SMTP_PASS}
-      - AUDIT_SERVICE_URL=http://audit-service:3004
     depends_on:
       - redis
     networks:
@@ -74,12 +71,11 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3002
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - JWT_SECRET=${JWT_SECRET}
-      - AUDIT_SERVICE_URL=http://audit-service:3004
     networks:
       - fut-manager-network
     restart: unless-stopped
@@ -93,35 +89,14 @@ services:
     ports:
       - "3003:3003"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3003
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - JWT_SECRET=${JWT_SECRET}
-      - AUDIT_SERVICE_URL=http://audit-service:3004
     networks:
       - fut-manager-network
     restart: unless-stopped
-
-  # Audit Service - Auditoría y Logs
-  audit-service:
-    build:
-      context: .
-      dockerfile: ./services/audit-service/Dockerfile
-    container_name: fut-manager-audit
-    ports:
-      - "3004:3004"
-    environment:
-      - NODE_ENV=production
-      - PORT=3004
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-    networks:
-      - fut-manager-network
-    restart: unless-stopped
-    volumes:
-      - audit_logs:/app/logs
 
   # Frontend - React Application
   frontend:
@@ -204,6 +179,5 @@ networks:
 
 volumes:
   redis_data:
-  audit_logs:
   prometheus_data:
   grafana_data:

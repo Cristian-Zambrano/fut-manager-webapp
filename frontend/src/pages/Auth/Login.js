@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/SupabaseAuthContext';
 import { Eye, EyeOff, Shield, AlertCircle } from 'lucide-react';
 
 const Login = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, resetPassword, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -15,9 +15,8 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [loginAttempts, setLoginAttempts] = useState(0);
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [blockTimer, setBlockTimer] = useState(0);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Redireccionar si ya está autenticado
   useEffect(() => {
@@ -27,23 +26,17 @@ const Login = () => {
     }
   }, [isAuthenticated, navigate, location]);
 
-  // Manejar bloqueo temporal (S-12: Account Lockout)
-  useEffect(() => {
-    let interval;
-    if (isBlocked && blockTimer > 0) {
-      interval = setInterval(() => {
-        setBlockTimer(prev => {
-          if (prev <= 1) {
-            setIsBlocked(false);
-            setLoginAttempts(0);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isBlocked, blockTimer]);
+  // Mostrar loader mientras se verifica la sesión inicial
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center">
+          <div className="spinner mb-4"></div>
+          <p className="text-gray-600">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   const validateForm = () => {
     const newErrors = {};
@@ -58,8 +51,8 @@ const Login = () => {
     // Validación password
     if (!formData.password) {
       newErrors.password = 'La contraseña es requerida';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'La contraseña debe tener al menos 8 caracteres';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'La contraseña debe tener al menos 6 caracteres';
     }
 
     setErrors(newErrors);
@@ -85,108 +78,100 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (isBlocked) {
-      return;
-    }
-
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
-
+    
     try {
-      const result = await login(formData.email, formData.password);
+      // Usar login del contexto de Supabase
+      const result = await login({
+        email: formData.email.toLowerCase().trim(),
+        password: formData.password
+      });
       
       if (result.success) {
-        // Reset attempts on successful login
-        setLoginAttempts(0);
-        setIsBlocked(false);
-        
-        const from = location.state?.from?.pathname || '/dashboard';
-        navigate(from, { replace: true });
+        const redirectTo = location.state?.from?.pathname || '/dashboard';
+        navigate(redirectTo, { replace: true });
       } else {
-        // Incrementar intentos fallidos (S-12)
-        const newAttempts = loginAttempts + 1;
-        setLoginAttempts(newAttempts);
-        
-        if (newAttempts >= 3) {
-          setIsBlocked(true);
-          setBlockTimer(300); // 5 minutos
-        }
-        
-        // Mostrar errores específicos del servidor
+        // Mostrar errores específicos
         if (result.details?.field) {
           setErrors({
             [result.details.field]: result.error
           });
         } else {
-          setErrors({
-            general: result.error
+          setErrors({ 
+            submit: result.error 
           });
         }
       }
     } catch (error) {
-      setErrors({
-        general: 'Error de conexión. Intenta nuevamente.'
+      console.error('Login error:', error);
+      setErrors({ 
+        submit: 'Error inesperado al iniciar sesión' 
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const formatTime = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const handleResetPassword = async () => {
+    if (!formData.email) {
+      setErrors({ email: 'Ingresa tu email para recuperar la contraseña' });
+      return;
+    }
+
+    setResetLoading(true);
+    
+    try {
+      // Usar resetPassword del hook de Supabase
+      const result = await resetPassword(formData.email.toLowerCase().trim());
+      
+      if (result.success) {
+        setShowResetPassword(false);
+        setErrors({});
+        // Mostrar mensaje de éxito
+        alert('Se ha enviado un email con instrucciones para recuperar tu contraseña.');
+      } else {
+        setErrors({
+          email: result.error
+        });
+      }
+    } catch (error) {
+      console.error('Reset password error:', error);
+      setErrors({
+        email: 'Error al enviar email de recuperación'
+      });
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div>
-          <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-blue-100">
-            <Shield className="h-6 w-6 text-blue-600" />
+        {/* Header */}
+        <div className="text-center">
+          <div className="flex justify-center">
+            <Shield className="h-16 w-16 text-blue-600" />
           </div>
-          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Iniciar Sesión
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Accede a FutManager
+          <p className="mt-2 text-sm text-gray-600">
+            Accede a tu cuenta de FutManager
           </p>
         </div>
 
-        {/* Mensaje de bloqueo */}
-        {isBlocked && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <div className="flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              <div>
-                <strong>Cuenta bloqueada temporalmente</strong>
-                <p className="text-sm">
-                  Demasiados intentos fallidos. Intenta nuevamente en {formatTime(blockTimer)}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Advertencia de intentos */}
-        {loginAttempts > 0 && loginAttempts < 3 && !isBlocked && (
-          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-            <div className="flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              <p className="text-sm">
-                Intento {loginAttempts} de 3. La cuenta se bloqueará temporalmente después de 3 intentos fallidos.
-              </p>
-            </div>
-          </div>
-        )}
-
+        {/* Formulario */}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {errors.general && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {errors.general}
+          {errors.submit && (
+            <div className="bg-red-50 border border-red-300 rounded-md p-4">
+              <div className="flex">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+                <div className="ml-3">
+                  <p className="text-sm text-red-800">{errors.submit}</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -199,35 +184,44 @@ const Login = () => {
                 id="email"
                 name="email"
                 type="email"
+                autoComplete="email"
+                required
                 value={formData.email}
                 onChange={handleInputChange}
-                className={`input-field ${errors.email ? 'border-red-500' : ''}`}
+                className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
+                  errors.email ? 'border-red-300' : 'border-gray-300'
+                } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                 placeholder="tu@email.com"
-                disabled={loading || isBlocked}
+                disabled={loading}
               />
-              {errors.email && <p className="form-error">{errors.email}</p>}
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+              )}
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Contraseña
               </label>
-              <div className="relative">
+              <div className="mt-1 relative">
                 <input
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`input-field pr-10 ${errors.password ? 'border-red-500' : ''}`}
+                  className={`appearance-none relative block w-full px-3 py-2 border ${
+                    errors.password ? 'border-red-300' : 'border-gray-300'
+                  } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm pr-10`}
                   placeholder="Tu contraseña"
-                  disabled={loading || isBlocked}
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   onClick={() => setShowPassword(!showPassword)}
-                  disabled={loading || isBlocked}
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5 text-gray-400" />
@@ -236,19 +230,52 @@ const Login = () => {
                   )}
                 </button>
               </div>
-              {errors.password && <p className="form-error">{errors.password}</p>}
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+              )}
             </div>
           </div>
+
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setShowResetPassword(!showResetPassword)}
+              className="text-sm text-blue-600 hover:text-blue-500"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+
+          {showResetPassword && (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+              <p className="text-sm text-blue-800 mb-2">
+                Ingresa tu email para recibir un enlace de recuperación
+              </p>
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={resetLoading}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                {resetLoading ? 'Enviando...' : 'Enviar enlace de recuperación'}
+              </button>
+            </div>
+          )}
 
           <div>
             <button
               type="submit"
-              disabled={loading || isBlocked}
-              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <div className="flex items-center justify-center">
-                  <div className="spinner mr-2"></div>
+                <div className="flex items-center">
+                  <div className="animate-spin -ml-1 mr-3 h-5 w-5 text-white">
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
                   Iniciando sesión...
                 </div>
               ) : (
@@ -270,14 +297,21 @@ const Login = () => {
           </div>
         </form>
 
-        {/* Información de seguridad */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">Política de Seguridad:</h3>
-          <ul className="text-xs text-blue-700 space-y-1">
-            <li>• Máximo 3 intentos de inicio de sesión</li>
-            <li>• Bloqueo temporal de 5 minutos tras fallos repetidos</li>
-            <li>• Las contraseñas deben tener al menos 8 caracteres</li>
-          </ul>
+        {/* Información de desarrollo */}
+        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h3 className="text-sm font-medium text-yellow-800 mb-2">🚧 Modo Desarrollo:</h3>
+          <p className="text-xs text-yellow-700">
+            Para fines de testing, necesitas configurar Supabase para permitir login sin confirmación de email,
+            o usar credenciales ya confirmadas.
+          </p>
+        </div>
+        {/* Información de desarrollo */}
+        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h3 className="text-sm font-medium text-yellow-800 mb-2">🚧 Modo Desarrollo:</h3>
+          <p className="text-xs text-yellow-700">
+            Para fines de testing, necesitas configurar Supabase para permitir login sin confirmación de email,
+            o usar credenciales ya confirmadas.
+          </p>
         </div>
       </div>
     </div>

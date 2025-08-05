@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/SupabaseAuthContext';
 import { Eye, EyeOff, Shield, Check, X, AlertCircle } from 'lucide-react';
 
 const Register = () => {
-  const { register, isAuthenticated } = useAuth();
+  const { register, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -31,6 +31,18 @@ const Register = () => {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, navigate]);
+
+  // Mostrar loader mientras se verifica la sesión inicial
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center">
+          <div className="spinner mb-4"></div>
+          <p className="text-gray-600">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Validar fortaleza de contraseña (S-02: Password Strength)
   const checkPasswordStrength = (password) => {
@@ -145,11 +157,12 @@ const Register = () => {
     setLoading(true);
 
     try {
+      // Registrar usuario directamente con Supabase usando el contexto
       const result = await register({
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
         email: formData.email.toLowerCase().trim(),
         password: formData.password,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
         phone: formData.phone.trim(),
         role: formData.role
       });
@@ -173,6 +186,7 @@ const Register = () => {
         }
       }
     } catch (error) {
+      console.error('Error during registration:', error);
       setErrors({
         general: 'Error de conexión. Intenta nuevamente.'
       });

@@ -1,4 +1,8 @@
-# FutManager Microservices
+# FutMa- **Gateway Service** (Puerto 3000CREATE SCHEMA IF NOT EXISTS team_service;
+CREATE SCHEMA IF NOT EXISTS sanction_service; API Gateway y balanceador
+- **Auth Service** (Puerto 3001) - Autenticación y autorización
+- **Team Service** (Puerto 3002) - Gestión de equipos y jugadores
+- **Sanction Service** (Puerto 3003) - Gestión de sanciones Microservices
 
 Sistema de gestión de campeonatos de fútbol parroquial implementado con arquitectura de microservicios.
 
@@ -24,7 +28,6 @@ Sistema de gestión de campeonatos de fútbol parroquial implementado con arquit
 
 ## Requerimientos de Seguridad Implementados
 - S-01: Respuesta automática ante violaciones
-- S-02: Registro de auditoría
 - S-03: Restricción acceso a logs
 - S-11/S-12: Bloqueo tras intentos fallidos
 - S-13: Verificación por email
@@ -40,7 +43,6 @@ Sistema de gestión de campeonatos de fútbol parroquial implementado con arquit
 CREATE SCHEMA IF NOT EXISTS auth_service;
 CREATE SCHEMA IF NOT EXISTS team_service;
 CREATE SCHEMA IF NOT EXISTS sanction_service;
-CREATE SCHEMA IF NOT EXISTS audit_service;
 ```
 
 ## Instalación y Ejecución

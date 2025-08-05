@@ -1,4 +1,3 @@
-const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -7,8 +6,8 @@ const supabase = createClient(
 );
 
 /**
- * Middleware de autenticación JWT
- * Verifica token y obtiene información del usuario
+ * Middleware de autenticación con Supabase Auth
+ * Verifica token de Supabase y obtiene información del usuario
  */
 const authenticateToken = async (req, res, next) => {
   try {
@@ -23,35 +22,56 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Verificar token JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Verificar token con Supabase Auth
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
-    // Obtener información actualizada del usuario
-    const { data: user, error } = await supabase
-      .from('auth_service.users')
-      .select(`
-        id,
-        email,
-        first_name,
-        last_name,
-        role_id,
-        is_active,
-        blocked_until,
-        roles (name, permissions)
-      `)
-      .eq('id', decoded.userId)
-      .single();
-
-    if (error || !user) {
+    if (authError || !user) {
       return res.status(401).json({
         success: false,
-        message: 'Token inválido',
+        message: 'Token inválido o expirado',
         code: 'INVALID_TOKEN'
       });
     }
 
+    // Obtener información del perfil del usuario con su rol
+    const { data: userProfile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select(`
+        *,
+        roles (id, name, permissions)
+      `)
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !userProfile) {
+      // Si no hay perfil, crear uno básico (fallback)
+      console.warn('User profile not found for user:', user.id);
+      req.user = {
+        id: user.id,
+        email: user.email,
+        firstName: user.user_metadata?.first_name || 'Sin nombre',
+        lastName: user.user_metadata?.last_name || 'Sin apellido',
+        role: 'owner',
+        roleId: 2,
+        permissions: ['teams:read', 'teams:update:own', 'sanctions:read:own'],
+        isActive: true
+      };
+    } else {
+      req.user = {
+        id: user.id,
+        email: user.email,
+        firstName: userProfile.first_name,
+        lastName: userProfile.last_name,
+        role: userProfile.roles?.name || 'owner',
+        roleId: userProfile.role_id,
+        permissions: userProfile.roles?.permissions || ['teams:read'],
+        isActive: userProfile.is_active,
+        teamId: userProfile.team_id
+      };
+    }
+
     // Verificar si el usuario está activo
-    if (!user.is_active) {
+    if (!req.user.isActive) {
       return res.status(401).json({
         success: false,
         message: 'Cuenta desactivada',
@@ -59,50 +79,13 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Verificar si el usuario está bloqueado (S-11)
-    if (user.blocked_until && new Date(user.blocked_until) > new Date()) {
-      return res.status(423).json({
-        success: false,
-        message: 'Cuenta temporalmente bloqueada',
-        code: 'ACCOUNT_LOCKED',
-        blocked_until: user.blocked_until
-      });
-    }
-
-    // Agregar información del usuario al request
-    req.user = {
-      id: user.id,
-      email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      roleId: user.role_id,
-      roleName: user.roles.name,
-      permissions: user.roles.permissions
-    };
-
     next();
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token expirado',
-        code: 'TOKEN_EXPIRED'
-      });
-    }
-
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token inválido',
-        code: 'INVALID_TOKEN'
-      });
-    }
-
-    console.error('Error en autenticación:', error);
-    return res.status(500).json({
+    console.error('Authentication error:', error);
+    return res.status(401).json({
       success: false,
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      message: 'Error de autenticación',
+      code: 'AUTH_ERROR'
     });
   }
 };
@@ -115,28 +98,38 @@ const authenticateToken = async (req, res, next) => {
 const authorize = (allowedRoles = [], requiredPermissions = []) => {
   return (req, res, next) => {
     try {
-      const { roleName, permissions } = req.user;
+      const { role, permissions } = req.user;
 
       // Convertir a arrays si son strings
       const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
       const perms = Array.isArray(requiredPermissions) ? requiredPermissions : [requiredPermissions];
 
       // Verificar rol
-      if (roles.length > 0 && !roles.includes(roleName)) {
+      if (roles.length > 0 && !roles.includes(role)) {
         return res.status(403).json({
           success: false,
           message: 'No tienes permisos para realizar esta acción',
           code: 'INSUFFICIENT_ROLE',
           required_roles: roles,
-          current_role: roleName
+          current_role: role
         });
       }
 
       // Verificar permisos específicos
       if (perms.length > 0) {
-        const hasAllPerms = perms.every(perm => 
-          permissions.includes('all') || permissions.includes(perm)
-        );
+        const hasAllPerms = perms.every(perm => {
+          // Administradores tienen acceso completo
+          if (permissions.includes('admin:*')) return true;
+          
+          // Verificar permiso específico
+          if (permissions.includes(perm)) return true;
+          
+          // Verificar wildcards (ej: teams:* incluye teams:read, teams:update, etc.)
+          const wildcardPerm = perm.split(':')[0] + ':*';
+          if (permissions.includes(wildcardPerm)) return true;
+          
+          return false;
+        });
 
         if (!hasAllPerms) {
           return res.status(403).json({
@@ -167,11 +160,11 @@ const authorize = (allowedRoles = [], requiredPermissions = []) => {
  */
 const validateOwnership = (userIdField = 'userId') => {
   return (req, res, next) => {
-    const { id: currentUserId, roleName } = req.user;
+    const { id: currentUserId, role } = req.user;
     const resourceUserId = req.params[userIdField] || req.body[userIdField];
 
     // Los admins pueden acceder a cualquier recurso
-    if (roleName === 'admin') {
+    if (role === 'admin') {
       return next();
     }
 

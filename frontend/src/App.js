@@ -4,7 +4,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 // Context
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/SupabaseAuthContext';
 
 // Components
 import Header from './components/Layout/Header';
@@ -17,7 +17,6 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import Teams from './pages/Teams/Teams';
 import Players from './pages/Teams/Players';
 import Sanctions from './pages/Sanctions/Sanctions';
-import Audit from './pages/Admin/Audit';
 import UserManagement from './pages/Admin/UserManagement';
 
 // CSS
@@ -57,12 +56,6 @@ function App() {
               <Route path="/sanctions" element={
                 <ProtectedRoute roles={['vocal', 'admin']}>
                   <Sanctions />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/audit" element={
-                <ProtectedRoute roles={['admin']}>
-                  <Audit />
                 </ProtectedRoute>
               } />
               

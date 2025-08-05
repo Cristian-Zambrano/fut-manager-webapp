@@ -9,9 +9,6 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 
-// Importar middleware compartido
-const { auditLogger, errorHandler } = require('../shared/middleware/common');
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -54,9 +51,6 @@ const authLimiter = rateLimit({
 // Middleware de parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// Middleware de auditoría
-app.use(auditLogger('auth-service'));
 
 // Health check
 app.get('/health', (req, res) => {

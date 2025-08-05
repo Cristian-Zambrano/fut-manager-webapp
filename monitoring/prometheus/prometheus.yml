@@ -44,13 +44,6 @@ scrape_configs:
     metrics_path: '/metrics'
     scrape_interval: 30s
 
-  # Audit Service
-  - job_name: 'audit-service'
-    static_configs:
-      - targets: ['audit-service:3004']
-    metrics_path: '/metrics'
-    scrape_interval: 30s
-
   # Redis monitoring
   - job_name: 'redis'
     static_configs:

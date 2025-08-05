@@ -4,20 +4,19 @@
   "description": "Sistema de gestión de campeonatos de fútbol con arquitectura de microservicios",
   "main": "index.js",
   "scripts": {
-    "install:all": "npm install && cd services/gateway-service && npm install && cd ../auth-service && npm install && cd ../team-service && npm install && cd ../sanction-service && npm install && cd ../audit-service && npm install && cd ../../frontend && npm install",
-    "dev:all": "concurrently \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:team\" \"npm run dev:sanction\" \"npm run dev:audit\" \"npm run dev:frontend\"",
+    "install:all": "npm install && cd services/gateway-service && npm install && cd ../auth-service && npm install && cd ../team-service && npm install && cd ../sanction-service && npm install && cd ../../frontend && npm install",
+    "dev:all": "concurrently \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:team\" \"npm run dev:sanction\" \"npm run dev:frontend\"",
     "dev:gateway": "cd services/gateway-service && npm run dev",
     "dev:auth": "cd services/auth-service && npm run dev",
     "dev:team": "cd services/team-service && npm run dev",
     "dev:sanction": "cd services/sanction-service && npm run dev",
-    "dev:audit": "cd services/audit-service && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "build:all": "cd services/gateway-service && npm run build && cd ../auth-service && npm run build && cd ../team-service && npm run build && cd ../sanction-service && npm run build && cd ../audit-service && npm run build && cd ../../frontend && npm run build",
+    "build:all": "cd services/gateway-service && npm run build && cd ../auth-service && npm run build && cd ../team-service && npm run build && cd ../sanction-service && npm run build && cd ../../frontend && npm run build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:build": "docker-compose build",
-    "test:all": "cd services/gateway-service && npm test && cd ../auth-service && npm test && cd ../team-service && npm test && cd ../sanction-service && npm test && cd ../audit-service && npm test",
-    "lint:all": "cd services/gateway-service && npm run lint && cd ../auth-service && npm run lint && cd ../team-service && npm run lint && cd ../sanction-service && npm run lint && cd ../audit-service && npm run lint && cd ../../frontend && npm run lint"
+    "test:all": "cd services/gateway-service && npm test && cd ../auth-service && npm test && cd ../team-service && npm test && cd ../sanction-service && npm test",
+    "lint:all": "cd services/gateway-service && npm run lint && cd ../auth-service && npm run lint && cd ../team-service && npm run lint && cd ../sanction-service && npm run lint && cd ../../frontend && npm run lint"
   },
   "keywords": [
     "microservices",

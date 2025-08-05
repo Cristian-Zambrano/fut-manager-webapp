@@ -7,9 +7,6 @@ require('dotenv').config();
 // Importar rutas
 const teamRoutes = require('./routes/teams');
 
-// Importar middleware compartido
-const { auditLogger, errorHandler } = require('../shared/middleware/common');
-
 const app = express();
 const PORT = process.env.PORT || 3002;
 
@@ -40,9 +37,6 @@ app.use(cors({
 // Middleware de parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// Middleware de auditoría
-app.use(auditLogger('team-service'));
 
 // Health check
 app.get('/health', (req, res) => {

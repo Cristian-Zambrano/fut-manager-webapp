@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/SupabaseAuthContext';
 import { 
   Home, 
   Users, 
@@ -10,22 +10,29 @@ import {
   LogOut, 
   Menu, 
   X,
-  Shield
+  Shield,
+  User,
+  ChevronDown
 } from 'lucide-react';
 
 const Header = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, userProfile, isAuthenticated, signOut, hasRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut();
     navigate('/login');
   };
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+
+  const toggleUserMenu = () => {
+    setIsUserMenuOpen(!isUserMenuOpen);
   };
 
   const isActivePath = (path) => {
@@ -37,25 +44,19 @@ const Header = () => {
       name: 'Dashboard',
       href: '/dashboard',
       icon: Home,
-      roles: ['admin', 'vocal', 'capitán', 'jugador']
+      roles: ['admin', 'vocal', 'capitan', 'jugador']
     },
     {
       name: 'Equipos',
       href: '/teams',
       icon: Users,
-      roles: ['admin', 'vocal', 'capitán', 'jugador']
+      roles: ['admin', 'vocal', 'capitan', 'jugador']
     },
     {
       name: 'Sanciones',
       href: '/sanctions',
       icon: AlertTriangle,
       roles: ['admin', 'vocal']
-    },
-    {
-      name: 'Auditoría',
-      href: '/audit',
-      icon: FileText,
-      roles: ['admin']
     },
     {
       name: 'Usuarios',
@@ -65,157 +66,175 @@ const Header = () => {
     }
   ];
 
+  const getUserName = () => {
+    if (userProfile) {
+      return `${userProfile.first_name} ${userProfile.last_name}`.trim();
+    }
+    
+    return user?.user_metadata?.firstName || 
+           user?.user_metadata?.full_name || 
+           user?.email?.split('@')[0] || 
+           'Usuario';
+  };
+
+  const getUserRole = () => {
+    const role = userProfile?.role || user?.user_metadata?.role || 'jugador';
+    const roles = {
+      'admin': 'Administrador',
+      'vocal': 'Vocal',
+      'capitan': 'Capitán',
+      'jugador': 'Jugador'
+    };
+    return roles[role] || 'Usuario';
+  };
+
   if (!isAuthenticated) {
-    return (
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link to="/" className="flex items-center space-x-2">
-                <Shield className="h-8 w-8 text-blue-600" />
-                <span className="text-xl font-bold text-gray-900">FutManager</span>
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link
-                to="/login"
-                className="text-gray-600 hover:text-gray-900 font-medium"
-              >
-                Iniciar Sesión
-              </Link>
-              <Link
-                to="/register"
-                className="btn-primary"
-              >
-                Registrarse
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
-    );
+    return null;
   }
 
-  const userNavigationItems = navigationItems.filter(item => 
-    item.roles.includes(user?.role)
-  );
-
   return (
-    <header className="bg-white shadow-sm border-b">
+    <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          {/* Logo y navegación principal */}
+        <div className="flex justify-between items-center h-16">
+          {/* Logo y título */}
           <div className="flex items-center">
-            <Link to="/dashboard" className="flex items-center space-x-2">
+            <Link to="/dashboard" className="flex items-center space-x-3">
               <Shield className="h-8 w-8 text-blue-600" />
-              <span className="text-xl font-bold text-gray-900">FutManager</span>
-            </Link>
-
-            {/* Navegación desktop */}
-            <nav className="hidden md:ml-8 md:flex md:space-x-6">
-              {userNavigationItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActivePath(item.href)
-                        ? 'text-blue-600 bg-blue-50'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span>{item.name}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* Menu desktop - usuario */}
-          <div className="hidden md:flex md:items-center md:space-x-4">
-            <div className="flex items-center space-x-2">
-              <div className="text-sm">
-                <span className="text-gray-600">Bienvenido,</span>
-                <span className="ml-1 font-medium text-gray-900">
-                  {user?.firstName} {user?.lastName}
-                </span>
+              <div className="hidden sm:block">
+                <h1 className="text-xl font-bold text-gray-900">FutManager</h1>
+                <p className="text-xs text-gray-500">Sistema de Gestión</p>
               </div>
-              <span className={`badge ${
-                user?.role === 'admin' ? 'badge-danger' :
-                user?.role === 'vocal' ? 'badge-warning' :
-                user?.role === 'capitán' ? 'badge-info' : 'badge-success'
-              }`}>
-                {user?.role}
-              </span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 font-medium"
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Salir</span>
-            </button>
+            </Link>
           </div>
 
-          {/* Botón menu mobile */}
-          <div className="md:hidden flex items-center">
-            <button
-              onClick={toggleMenu}
-              className="text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md p-2"
-            >
-              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Menu mobile */}
-      {isMenuOpen && (
-        <div className="md:hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t">
-            {userNavigationItems.map((item) => {
-              const Icon = item.icon;
+          {/* Navegación desktop */}
+          <nav className="hidden md:flex space-x-8">
+            {navigationItems.map((item) => {
+              const canAccess = hasRole(item.roles) || userProfile?.role === 'admin';
+              
+              if (!canAccess) return null;
+              
               return (
                 <Link
                   key={item.name}
                   to={item.href}
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2 transition-colors duration-200 ${
                     isActivePath(item.href)
-                      ? 'text-blue-600 bg-blue-50'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
-                  <span>{item.name}</span>
+                  <item.icon className="h-4 w-4 mr-2" />
+                  {item.name}
                 </Link>
               );
             })}
-            
-            {/* Usuario info mobile */}
-            <div className="px-3 py-2 border-t">
-              <div className="text-sm text-gray-600 mb-2">
-                {user?.firstName} {user?.lastName}
-                <span className={`ml-2 badge ${
-                  user?.role === 'admin' ? 'badge-danger' :
-                  user?.role === 'vocal' ? 'badge-warning' :
-                  user?.role === 'capitán' ? 'badge-info' : 'badge-success'
-                }`}>
-                  {user?.role}
-                </span>
-              </div>
+          </nav>
+
+          {/* Usuario y menú móvil */}
+          <div className="flex items-center space-x-4">
+            {/* Información del usuario */}
+            <div className="relative">
+              <button
+                onClick={toggleUserMenu}
+                className="flex items-center space-x-3 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-md p-2"
+              >
+                <div className="hidden sm:block text-right">
+                  <p className="font-medium text-gray-900">{getUserName()}</p>
+                  <p className="text-xs text-gray-500">{getUserRole()}</p>
+                </div>
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="h-5 w-5 text-blue-600" />
+                </div>
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </button>
+
+              {/* Dropdown menú usuario */}
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">{getUserName()}</p>
+                    <p className="text-xs text-gray-500">{user?.email}</p>
+                    <p className="text-xs text-blue-600">{getUserRole()}</p>
+                  </div>
+                  
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Cerrar Sesión
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Botón menú móvil */}
+            <button
+              onClick={toggleMenu}
+              className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+            >
+              {isMenuOpen ? (
+                <X className="block h-6 w-6" />
+              ) : (
+                <Menu className="block h-6 w-6" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Menú móvil */}
+        {isMenuOpen && (
+          <div className="md:hidden">
+            <div className="pt-2 pb-3 space-y-1 border-t border-gray-200">
+              {navigationItems.map((item) => {
+                const canAccess = hasRole(item.roles) || userProfile?.role === 'admin';
+                
+                if (!canAccess) return null;
+                
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`block pl-3 pr-4 py-2 text-base font-medium transition-colors duration-200 ${
+                      isActivePath(item.href)
+                        ? 'bg-blue-50 border-r-4 border-blue-500 text-blue-700'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center">
+                      <item.icon className="h-5 w-5 mr-3" />
+                      {item.name}
+                    </div>
+                  </Link>
+                );
+              })}
+              
+              {/* Botón logout móvil */}
               <button
                 onClick={handleLogout}
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 font-medium"
+                className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-50"
               >
-                <LogOut className="h-4 w-4" />
-                <span>Cerrar Sesión</span>
+                <div className="flex items-center">
+                  <LogOut className="h-5 w-5 mr-3" />
+                  Cerrar Sesión
+                </div>
               </button>
             </div>
           </div>
-        </div>
+        )}
+      </div>
+      
+      {/* Overlay para cerrar menús al hacer click fuera */}
+      {(isMenuOpen || isUserMenuOpen) && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => {
+            setIsMenuOpen(false);
+            setIsUserMenuOpen(false);
+          }}
+        />
       )}
     </header>
   );
