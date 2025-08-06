@@ -187,43 +187,19 @@ router.get('/teams/:teamId/players', authenticateToken, async (req, res) => {
   try {
     const { teamId } = req.params;
 
-    // Verificar acceso al equipo
+    // Verificar acceso al equipo usando RPC
     if (req.user.role === 'owner') {
-      const { data: team } = await supabase
-        .from('teams')
-        .select('owner_id')
-        .eq('id', teamId)
-        .eq('is_active', true)
+      const { data: team, error: teamError } = await supabase
+        .rpc('get_team_by_id', { team_id_param: teamId })
         .single();
-
-      if (!team || team.owner_id !== req.user.id) {
+      if (teamError || !team || team.owner_id !== req.user.id) {
         return ResponseUtils.forbidden(res, 'No tienes acceso a este equipo');
       }
     }
 
+    // Obtener jugadores usando RPC
     const { data: players, error } = await supabase
-      .from('players')
-      .select(`
-        id,
-        first_name,
-        last_name,
-        birth_date,
-        position,
-        jersey_number,
-        identification,
-        phone,
-        emergency_contact,
-        is_active,
-        created_at,
-        team_players!inner (
-          joined_at,
-          is_active
-        )
-      `)
-      .eq('team_players.team_id', teamId)
-      .eq('team_players.is_active', true)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
+      .rpc('get_team_players', { team_id_param: teamId });
 
     if (error) {
       console.error('Error fetching team players:', error);
@@ -231,7 +207,7 @@ router.get('/teams/:teamId/players', authenticateToken, async (req, res) => {
     }
 
     ResponseUtils.success(res, {
-      players: players.map(player => ({
+      players: (players || []).map(player => ({
         id: player.id,
         firstName: player.first_name,
         lastName: player.last_name,
@@ -242,8 +218,7 @@ router.get('/teams/:teamId/players', authenticateToken, async (req, res) => {
         phone: player.phone,
         emergencyContact: player.emergency_contact,
         isActive: player.is_active,
-        createdAt: player.created_at,
-        joinedAt: player.team_players[0].joined_at
+        createdAt: player.created_at
       }))
     });
 
@@ -311,12 +286,9 @@ router.post('/teams/:teamId/players', authenticateToken, async (req, res) => {
       return ResponseUtils.badRequest(res, validationError.details[0].message);
     }
 
-    // Verificar que el usuario es owner del equipo
+    // Verificar que el usuario es owner del equipo usando RPC
     const { data: team, error: teamError } = await supabase
-      .from('teams')
-      .select('id, name, owner_id')
-      .eq('id', teamId)
-      .eq('is_active', true)
+      .rpc('get_team_by_id', { team_id_param: teamId })
       .single();
 
     if (teamError || !team) {
@@ -327,98 +299,42 @@ router.post('/teams/:teamId/players', authenticateToken, async (req, res) => {
       return ResponseUtils.forbidden(res, 'Solo el dueño del equipo puede agregar jugadores');
     }
 
-    // Verificar que la identificación no existe
-    const { data: existingPlayer } = await supabase
-      .from('players')
-      .select('id')
-      .eq('identification', playerData.identification)
-      .eq('is_active', true)
-      .single();
+    // Las validaciones de unicidad de identificación y número de camiseta ya están en la función RPC
 
-    if (existingPlayer) {
-      return ResponseUtils.badRequest(res, 'Ya existe un jugador con esta identificación');
-    }
-
-    // Verificar número de camiseta único en el equipo (si se proporciona)
-    if (playerData.jerseyNumber) {
-      const { data: existingJersey } = await supabase
-        .from('players')
-        .select(`
-          id,
-          team_players!inner (
-            team_id
-          )
-        `)
-        .eq('jersey_number', playerData.jerseyNumber)
-        .eq('team_players.team_id', teamId)
-        .eq('team_players.is_active', true)
-        .eq('is_active', true)
-        .single();
-
-      if (existingJersey) {
-        return ResponseUtils.badRequest(res, 'El número de camiseta ya está en uso en este equipo');
-      }
-    }
-
-    // Crear el jugador
-    const { data: newPlayer, error: playerError } = await supabase
-      .from('players')
-      .insert({
-        first_name: playerData.firstName,
-        last_name: playerData.lastName,
-        birth_date: playerData.birthDate,
-        position: playerData.position,
-        jersey_number: playerData.jerseyNumber,
-        identification: playerData.identification,
-        phone: playerData.phone,
-        emergency_contact: playerData.emergencyContact,
-        is_active: true
+    // Crear el jugador usando la función RPC
+    const { data: rpcPlayer, error: rpcError } = await supabase
+      .rpc('create_player_for_team', {
+        team_id_param: teamId,
+        first_name_param: playerData.firstName,
+        last_name_param: playerData.lastName,
+        identification_param: playerData.identification,
+        birth_date_param: playerData.birthDate,
+        position_param: playerData.position || null,
+        jersey_number_param: playerData.jerseyNumber || null,
+        phone_param: playerData.phone || null,
+        emergency_contact_param: playerData.emergencyContact || null
       })
-      .select()
       .single();
 
-    if (playerError) {
-      console.error('Error creating player:', playerError);
-      return ResponseUtils.error(res, 'Error creando jugador', 500, 'CREATE_ERROR');
-    }
-
-    // Asociar jugador al equipo
-    const { error: teamPlayerError } = await supabase
-      .from('team_players')
-      .insert({
-        team_id: teamId,
-        player_id: newPlayer.id,
-        joined_at: new Date().toISOString(),
-        is_active: true
-      });
-
-    if (teamPlayerError) {
-      console.error('Error associating player to team:', teamPlayerError);
-      
-      // Rollback: eliminar el jugador creado
-      await supabase
-        .from('players')
-        .delete()
-        .eq('id', newPlayer.id);
-
-      return ResponseUtils.error(res, 'Error asociando jugador al equipo', 500, 'ASSOCIATION_ERROR');
+    if (rpcError) {
+      console.error('Error creando jugador con RPC:', rpcError);
+      return ResponseUtils.error(res, rpcError.message || 'Error creando jugador', 500, 'CREATE_ERROR');
     }
 
     ResponseUtils.success(res, {
       player: {
-        id: newPlayer.id,
-        firstName: newPlayer.first_name,
-        lastName: newPlayer.last_name,
-        birthDate: newPlayer.birth_date,
-        position: newPlayer.position,
-        jerseyNumber: newPlayer.jersey_number,
-        identification: newPlayer.identification,
-        phone: newPlayer.phone,
-        emergencyContact: newPlayer.emergency_contact,
-        isActive: newPlayer.is_active,
-        createdAt: newPlayer.created_at,
-        teamId: teamId,
-        joinedAt: new Date().toISOString()
+        id: rpcPlayer.id,
+        firstName: rpcPlayer.first_name,
+        lastName: rpcPlayer.last_name,
+        birthDate: rpcPlayer.birth_date,
+        position: rpcPlayer.position,
+        jerseyNumber: rpcPlayer.jersey_number,
+        identification: rpcPlayer.identification,
+        phone: rpcPlayer.phone,
+        emergencyContact: rpcPlayer.emergency_contact,
+        isActive: rpcPlayer.is_active,
+        createdAt: rpcPlayer.created_at,
+        teamId: teamId
       }
     }, 'Jugador registrado exitosamente', 201);
 

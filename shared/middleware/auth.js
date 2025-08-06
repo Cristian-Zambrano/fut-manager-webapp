@@ -12,9 +12,13 @@ const supabase = createClient(
 const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
+    console.log('🔍 Auth Header received:', authHeader ? 'Present' : 'Missing');
+    
     const token = authHeader && authHeader.split(' ')[1];
+    console.log('🔍 Token extracted:', token ? 'Present' : 'Missing');
 
     if (!token) {
+      console.log('❌ No token provided');
       return res.status(401).json({
         success: false,
         message: 'Token de acceso requerido',
@@ -23,15 +27,19 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Verificar token con Supabase Auth
+    console.log('🔍 Verifying token with Supabase...');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
+      console.log('❌ Token verification failed:', authError?.message || 'No user returned');
       return res.status(401).json({
         success: false,
         message: 'Token inválido o expirado',
         code: 'INVALID_TOKEN'
       });
     }
+
+    console.log('✅ Token verified for user:', user.email);
 
     // Obtener información del rol usando la función RPC original
     let roleInfo = null;
@@ -91,48 +99,11 @@ const authenticateToken = async (req, res, next) => {
       isActive: true
     };
     
-    console.log(`User authenticated: ${user.email}, Role: ${roleInfo.name}`);
-
-    // TODO: Restaurar funciones RPC cuando los schemas funcionen
-    /*
-    // Obtener información del rol del usuario usando RPC
-    const { data: roleData, error: roleError } = await supabase
-      .rpc('get_user_role_info', { user_id_param: user.id });
-
-    let roleInfo = null;
-    if (!roleError && roleData && roleData.length > 0) {
-      roleInfo = roleData[0];
-    }
-
-    if (!roleInfo) {
-      // Fallback a role owner si no se encuentra el rol en la tabla user_roles
-      console.warn('Role not found for user:', user.id, 'using default owner role');
-      req.user = {
-        id: user.id,
-        email: user.email,
-        firstName: user.user_metadata?.first_name || 'Sin nombre',
-        lastName: user.user_metadata?.last_name || 'Sin apellido',
-        roleName: 'owner',
-        roleId: 2,
-        permissions: ['team:read', 'team:create', 'team:update', 'player:read', 'player:create'],
-        isActive: true
-      };
-    } else {
-      req.user = {
-        id: user.id,
-        email: user.email,
-        firstName: user.user_metadata?.first_name || 'Sin nombre',
-        lastName: user.user_metadata?.last_name || 'Sin apellido',
-        roleName: roleInfo.role_name,
-        roleId: roleInfo.role_id,
-        permissions: roleInfo.permissions || [],
-        isActive: true
-      };
-    }
-    */
+    console.log(`✅ User authenticated: ${user.email}, Role: ${roleInfo.role_name}`);
 
     // Verificar si el usuario está activo
     if (!req.user.isActive) {
+      console.log('❌ User account is disabled');
       return res.status(401).json({
         success: false,
         message: 'Cuenta desactivada',
@@ -140,6 +111,7 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
+    console.log('✅ Authentication successful, proceeding to next middleware');
     next();
   } catch (error) {
     console.error('Authentication error:', error);

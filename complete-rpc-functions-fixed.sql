@@ -327,7 +327,6 @@ BEGIN
 END;
 $$;
 
--- Crear jugador para un equipo
 CREATE OR REPLACE FUNCTION create_player_for_team(
   team_id_param UUID,
   first_name_param VARCHAR(100),

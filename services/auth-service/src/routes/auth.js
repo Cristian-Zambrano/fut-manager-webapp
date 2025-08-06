@@ -257,6 +257,7 @@ router.post('/login', async (req, res) => {
     ResponseUtils.success(res, {
       session: authData.session,
       user: userData,
+      token: authData.session.access_token,
       access_token: authData.session.access_token,
       refresh_token: authData.session.refresh_token
     }, 'Login exitoso');

@@ -219,33 +219,29 @@ const swaggerSpec = {
         }
       }
     },
-    '/api/teams': {
+    '/api/teams/{teamId}/players': {
       get: {
-        tags: ['Equipos'],
-        summary: 'Obtener todos los equipos',
-        description: 'Lista todos los equipos registrados en el sistema',
-        security: [{ bearerAuth: [] }],
+        tags: ['Jugadores'],
+        summary: 'Obtener jugadores de un equipo',
+        description: 'Devuelve la lista de jugadores de un equipo específico',
+        parameters: [
+          {
+            name: 'teamId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' }
+          }
+        ],
         responses: {
           '200': {
-            description: 'Lista de equipos obtenida exitosamente',
+            description: 'Lista de jugadores',
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
                   properties: {
-                    success: { type: 'boolean', example: true },
-                    data: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          id: { type: 'string', example: 'uuid' },
-                          name: { type: 'string', example: 'Barcelona SC' },
-                          description: { type: 'string', example: 'Equipo de fútbol profesional' },
-                          createdAt: { type: 'string', format: 'date-time' }
-                        }
-                      }
-                    }
+                    success: { type: 'boolean' },
+                    players: { type: 'array', items: { type: 'object' } }
                   }
                 }
               }
@@ -253,6 +249,180 @@ const swaggerSpec = {
           }
         }
       },
+      post: {
+        tags: ['Jugadores'],
+        summary: 'Registrar jugador en equipo',
+        description: 'Agrega un nuevo jugador al equipo',
+        parameters: [
+          {
+            name: 'teamId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' }
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  firstName: { type: 'string' },
+                  lastName: { type: 'string' },
+                  birthDate: { type: 'string', format: 'date' },
+                  identification: { type: 'string' },
+                  position: { type: 'string' },
+                  jerseyNumber: { type: 'integer' },
+                  phone: { type: 'string' },
+                  emergencyContact: { type: 'string' }
+                },
+                required: ['firstName', 'lastName', 'birthDate', 'identification']
+              }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Jugador registrado exitosamente'
+          }
+        }
+      }
+    },
+    '/api/players': {
+      get: {
+        tags: ['Jugadores'],
+        summary: 'Obtener todos los jugadores',
+        description: 'Lista todos los jugadores registrados en el sistema',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'page',
+            in: 'query',
+            schema: { type: 'integer', minimum: 1, default: 1 }
+          },
+          {
+            name: 'limit',
+            in: 'query',
+            schema: { type: 'integer', minimum: 1, maximum: 50, default: 10 }
+          },
+          {
+            name: 'search',
+            in: 'query',
+            schema: { type: 'string' }
+          }
+        ],
+        responses: {
+          '200': {
+            description: 'Lista de jugadores',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    players: { type: 'array', items: { type: 'object' } },
+                    pagination: { type: 'object' }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/players/{playerId}': {
+      put: {
+        tags: ['Jugadores'],
+        summary: 'Actualizar información de un jugador',
+        description: 'Actualiza los datos de un jugador existente',
+        parameters: [
+          {
+            name: 'playerId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' }
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  firstName: { type: 'string' },
+                  lastName: { type: 'string' },
+                  birthDate: { type: 'string', format: 'date' },
+                  position: { type: 'string' },
+                  jerseyNumber: { type: 'integer' },
+                  phone: { type: 'string' },
+                  emergencyContact: { type: 'string' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Jugador actualizado exitosamente'
+          }
+        }
+      },
+      delete: {
+        tags: ['Jugadores'],
+        summary: 'Eliminar jugador',
+        description: 'Elimina (desactiva) un jugador del sistema',
+        parameters: [
+          {
+            name: 'playerId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' }
+          }
+        ],
+        responses: {
+          '200': {
+            description: 'Jugador eliminado exitosamente'
+          }
+        }
+      }
+    },
+    '/api/players/{playerId}/transfer': {
+      post: {
+        tags: ['Jugadores'],
+        summary: 'Transferir jugador a otro equipo',
+        description: 'Transfiere un jugador a otro equipo',
+        parameters: [
+          {
+            name: 'playerId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' }
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  newTeamId: { type: 'string', format: 'uuid' }
+                },
+                required: ['newTeamId']
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Jugador transferido exitosamente'
+          }
+        }
+      }
+    },
+    '/api/teams': {
       post: {
         tags: ['Equipos'],
         summary: 'Crear nuevo equipo',
@@ -372,6 +542,9 @@ const swaggerSpec = {
     }
   }
 };
+
+// Configurar trust proxy para manejar headers X-Forwarded-For correctamente
+app.set('trust proxy', true);
 
 // Middleware de seguridad
 app.use(helmet({

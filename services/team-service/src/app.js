@@ -51,7 +51,7 @@ app.get('/health', (req, res) => {
 
 // Rutas
 app.use('/api/teams', teamRoutes);
-app.use('/api/players', playerRoutes);
+app.use('/api', playerRoutes); // Así /api/teams/:teamId/players funcionará correctamente
 
 // Manejo de rutas no encontradas
 app.use('*', (req, res) => {

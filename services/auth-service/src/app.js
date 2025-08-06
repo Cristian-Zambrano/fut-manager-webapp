@@ -5,6 +5,9 @@ const rateLimit = require('express-rate-limit');
 const winston = require('winston');
 require('dotenv').config();
 
+// Importar middlewares compartidos
+const { errorHandler } = require('../shared/middleware');
+
 // Importar rutas
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -28,6 +31,9 @@ const logger = winston.createLogger({
     })
   ]
 });
+
+// Configurar trust proxy para manejar headers X-Forwarded-For correctamente
+app.set('trust proxy', true);
 
 // Middleware de seguridad
 app.use(helmet());

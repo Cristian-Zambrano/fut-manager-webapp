@@ -4,6 +4,9 @@ const helmet = require('helmet');
 const winston = require('winston');
 require('dotenv').config();
 
+// Importar middlewares compartidos
+const { errorHandler } = require('../shared/middleware');
+
 // Importar rutas
 const sanctionRoutes = require('./routes/sanctions');
 
