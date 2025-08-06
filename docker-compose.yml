@@ -42,12 +42,14 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:3001
       - TEAM_SERVICE_URL=http://team-service:3002
       - SANCTION_SERVICE_URL=http://sanction-service:3003
+      - CHAT_SERVICE_URL=http://chat-service:3004
       - CORS_ORIGIN=http://localhost:5173,http://frontend
     depends_on:
       - redis
       - auth-service
       - team-service
       - sanction-service
+      - chat-service
     networks:
       - fut-manager-network
     restart: unless-stopped
@@ -109,6 +111,27 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - fut-manager-network
+    restart: unless-stopped
+
+  # Chat Service - Sistema de Chat para Owners
+  chat-service:
+    build:
+      context: .
+      dockerfile: ./services/chat-service/Dockerfile
+    container_name: fut-manager-chat
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=http://localhost:5173,http://localhost:3000,http://frontend:8081
+    depends_on:
+      - redis
     networks:
       - fut-manager-network
     restart: unless-stopped

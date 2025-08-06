@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Users, Trophy, AlertTriangle, LogOut, User } from 'lucide-react';
+import { Users, Trophy, AlertTriangle, LogOut, User, MessageCircle } from 'lucide-react';
 import TeamsTab from './tabs/TeamsTab';
 import PlayersTab from './tabs/PlayersTab';
 import SanctionsTab from './tabs/SanctionsTab';
+import ChatWindow from '../chat/ChatWindow';
 
 const Dashboard = () => {
   const { user, logout, isAdmin, isOwner, isVocal } = useAuth();
@@ -30,6 +31,13 @@ const Dashboard = () => {
       icon: AlertTriangle,
       component: SanctionsTab,
       accessible: true, // Todos los roles pueden ver sanciones
+    },
+    {
+      id: 'chat',
+      name: 'Chat Owners',
+      icon: MessageCircle,
+      component: ChatWindow,
+      accessible: isOwner, // Solo para owners
     },
   ];
 

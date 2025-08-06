@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -9,6 +10,7 @@ const winston = require('winston');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 // Configuración de logging
@@ -649,7 +651,8 @@ app.get('/swagger.json', (req, res) => {
 const services = {
   auth: process.env.AUTH_SERVICE_URL || 'http://localhost:3001',
   team: process.env.TEAM_SERVICE_URL || 'http://localhost:3002',
-  sanction: process.env.SANCTION_SERVICE_URL || 'http://localhost:3003'
+  sanction: process.env.SANCTION_SERVICE_URL || 'http://localhost:3003',
+  chat: process.env.CHAT_SERVICE_URL || 'http://localhost:3004'
 };
 
 // Función para crear proxy con configuración común
@@ -679,6 +682,44 @@ const createServiceProxy = (target, pathRewrite = {}) => {
   });
 };
 
+// Función especial para proxy WebSocket del chat
+const createChatWebSocketProxy = (target) => {
+  return createProxyMiddleware({
+    target,
+    changeOrigin: true,
+    ws: true, // Habilitar soporte para WebSocket
+    pathRewrite: {
+      '^/api/chat': ''
+    },
+    timeout: 60000, // Timeout más largo para WebSockets
+    onError: (err, req, res) => {
+      logger.error(`Chat WebSocket proxy error to ${target}:`, err);
+      if (res && !res.headersSent) {
+        res.status(503).json({
+          success: false,
+          message: 'Servicio de chat temporalmente no disponible',
+          code: 'CHAT_SERVICE_UNAVAILABLE'
+        });
+      }
+    },
+    onProxyReq: (proxyReq, req, res) => {
+      logger.info(`🔄 Chat proxying ${req.method} ${req.url} to ${target}${proxyReq.path}`);
+      proxyReq.setHeader('X-Gateway-Request', 'true');
+      proxyReq.setHeader('X-Request-ID', req.id || Date.now().toString());
+    },
+    onProxyRes: (proxyRes, req, res) => {
+      logger.info(`✅ Chat proxy response from ${target}: ${proxyRes.statusCode}`);
+    },
+    onProxyReqWs: (proxyReq, req, socket, options, head) => {
+      logger.info(`🔗 WebSocket upgrade request proxied to ${target}`);
+      proxyReq.setHeader('X-Gateway-WebSocket', 'true');
+    },
+    onProxyResWs: (proxyRes, proxySocket, proxyHead) => {
+      logger.info(`✅ WebSocket connection established with ${target}`);
+    }
+  });
+};
+
 // Rutas a microservicios con rate limiting específico
 
 // Auth Service - con rate limiting estricto
@@ -699,6 +740,10 @@ app.use('/api/players', createServiceProxy(services.team, {
 app.use('/api/sanctions', createServiceProxy(services.sanction, {
   '^/api/sanctions': '/api/sanctions'
 }));
+
+// Chat Service - Solo para owners con soporte WebSocket
+const chatProxy = createChatWebSocketProxy(services.chat);
+app.use('/api/chat', chatProxy);
 
 // Endpoint para obtener información de servicios
 app.get('/api/services/status', async (req, res) => {
@@ -751,9 +796,10 @@ app.use((err, req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   logger.info(`🚀 Gateway Service iniciado en puerto ${PORT}`);
   logger.info(`📚 Documentación disponible en http://localhost:${PORT}/api-docs`);
+  logger.info(`💬 WebSocket Chat proxy habilitado en /api/chat`);
   logger.info('📋 Servicios configurados:', services);
 });
 
