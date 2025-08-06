@@ -128,24 +128,32 @@ export const useChat = () => {
         const exists = prevMessages.some(msg => msg.id === message.id);
         if (exists) return prevMessages;
         
-        return [message, ...prevMessages].sort((a, b) => 
-          new Date(b.created_at) - new Date(a.created_at)
-        );
+        // Agregar nuevo mensaje al final (los más recientes van abajo)
+        return [...prevMessages, message];
       });
     };
 
     const handleMessages = (data) => {
       const { messages: newMessages, hasMore } = data;
       setMessages(prevMessages => {
-        // Combinar y eliminar duplicados
-        const combinedMessages = [...prevMessages, ...newMessages];
-        const uniqueMessages = combinedMessages.filter((msg, index, array) => 
-          array.findIndex(m => m.id === msg.id) === index
-        );
-        
-        return uniqueMessages.sort((a, b) => 
-          new Date(b.created_at) - new Date(a.created_at)
-        );
+        if (prevMessages.length === 0) {
+          // Carga inicial - ordenar los mensajes cronológicamente (más antiguos primero, más recientes al final)
+          return (newMessages || []).sort((a, b) => 
+            new Date(a.created_at) - new Date(b.created_at)
+          );
+        } else {
+          // Cargar más mensajes anteriores
+          // Los nuevos mensajes (más antiguos) van al principio
+          const sortedNewMessages = (newMessages || []).sort((a, b) => 
+            new Date(a.created_at) - new Date(b.created_at)
+          );
+          const combinedMessages = [...sortedNewMessages, ...prevMessages];
+          // Eliminar duplicados manteniendo el orden
+          const uniqueMessages = combinedMessages.filter((msg, index, array) => 
+            array.findIndex(m => m.id === msg.id) === index
+          );
+          return uniqueMessages;
+        }
       });
       setHasMoreMessages(hasMore);
     };

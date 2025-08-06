@@ -52,21 +52,28 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+  -- Para una paginación correcta en chat:
+  -- 1. Obtenemos los mensajes más recientes primero (DESC)
+  -- 2. Aplicamos LIMIT y OFFSET
+  -- 3. Luego los reordenamos cronológicamente (ASC) para mostrar
   RETURN QUERY
-  SELECT 
-    m.id,
-    m.sender_id,
-    CONCAT(COALESCE(u.raw_user_meta_data->>'first_name', 'Usuario'), ' ', COALESCE(u.raw_user_meta_data->>'last_name', '')) as sender_name,
-    m.content,
-    m.message_type,
-    m.is_edited,
-    m.edited_at,
-    m.created_at
-  FROM chat_service.messages m
-  LEFT JOIN auth.users u ON m.sender_id = u.id
-  WHERE m.is_active = true
-  ORDER BY m.created_at DESC
-  LIMIT limit_param OFFSET offset_param;
+  SELECT * FROM (
+    SELECT 
+      m.id,
+      m.sender_id,
+      CONCAT(COALESCE(u.raw_user_meta_data->>'first_name', 'Usuario'), ' ', COALESCE(u.raw_user_meta_data->>'last_name', '')) as sender_name,
+      m.content,
+      m.message_type,
+      m.is_edited,
+      m.edited_at,
+      m.created_at
+    FROM chat_service.messages m
+    LEFT JOIN auth.users u ON m.sender_id = u.id
+    WHERE m.is_active = true
+    ORDER BY m.created_at DESC
+    LIMIT limit_param OFFSET offset_param
+  ) AS paginated_messages
+  ORDER BY created_at ASC;
 END;
 $$;
 

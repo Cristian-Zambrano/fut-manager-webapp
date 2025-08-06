@@ -42,16 +42,29 @@ const ChatWindow = () => {
       const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
       
-      if (isNearBottom) {
+      // Si es la carga inicial (primer mensaje) o está cerca del final, hacer scroll
+      if (isNearBottom || messages.length === 1) {
         setTimeout(() => {
           chatContainerRef.current?.scrollTo({
             top: chatContainerRef.current.scrollHeight,
-            behavior: 'smooth'
+            behavior: messages.length === 1 ? 'auto' : 'smooth'
           });
         }, 100);
       }
     }
   }, [messages]);
+
+  // Scroll inicial al conectarse
+  useEffect(() => {
+    if (isConnected && messages.length > 0 && chatContainerRef.current) {
+      setTimeout(() => {
+        chatContainerRef.current?.scrollTo({
+          top: chatContainerRef.current.scrollHeight,
+          behavior: 'auto'
+        });
+      }, 500);
+    }
+  }, [isConnected, messages.length]);
 
   // Mostrar notificaciones
   useEffect(() => {
