@@ -33,11 +33,69 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Para este sistema simple, obtenemos el rol desde los metadatos del usuario
-    // En el futuro se puede extender para tener una tabla de perfiles de usuario
-    const roleId = user.user_metadata?.role_id || 2; // Default to owner (2)
+    // Obtener información del rol usando la función RPC original
+    let roleInfo = null;
     
-    // Obtener información del rol del usuario usando RPC (basado en user_id)
+    try {
+      console.log(`Trying RPC get_user_role_info for user: ${user.id}`);
+      const { data: roleData, error: roleError } = await supabase
+        .rpc('get_user_role_info', { user_id_param: user.id })
+        .single();
+      
+      if (roleError) {
+        console.log(`RPC Error for user: ${user.id}`, roleError);
+        // Fallback: rol de owner por defecto
+        roleInfo = {
+          role_id: 2,
+          role_name: 'owner',
+          role_description: 'Dueño de equipo',
+          permissions: ['team:read', 'team:create', 'team:update', 'player:read', 'player:create']
+        };
+      } else if (roleData) {
+        console.log(`RPC Success for user: ${user.id}`, roleData);
+        roleInfo = {
+          role_id: roleData.role_id,
+          role_name: roleData.role_name,
+          role_description: roleData.role_description,
+          permissions: Array.isArray(roleData.permissions) ? roleData.permissions : ['team:read', 'player:read']
+        };
+      } else {
+        console.log(`No role data returned for user: ${user.id}`);
+        // Fallback: rol de owner por defecto
+        roleInfo = {
+          role_id: 2,
+          role_name: 'owner',
+          role_description: 'Dueño de equipo',
+          permissions: ['team:read', 'team:create', 'team:update', 'player:read', 'player:create']
+        };
+      }
+    } catch (rpcError) {
+      console.log(`RPC Exception for user: ${user.id}`, rpcError);
+      // Fallback: rol de owner por defecto
+      roleInfo = {
+        role_id: 2,
+        role_name: 'owner',
+        role_description: 'Dueño de equipo',
+        permissions: ['team:read', 'team:create', 'team:update', 'player:read', 'player:create']
+      };
+    }
+    
+    req.user = {
+      id: user.id,
+      email: user.email,
+      firstName: user.user_metadata?.first_name || 'Sin nombre',
+      lastName: user.user_metadata?.last_name || 'Sin apellido',
+      roleName: roleInfo.role_name,
+      roleId: roleInfo.role_id,
+      permissions: roleInfo.permissions,
+      isActive: true
+    };
+    
+    console.log(`User authenticated: ${user.email}, Role: ${roleInfo.name}`);
+
+    // TODO: Restaurar funciones RPC cuando los schemas funcionen
+    /*
+    // Obtener información del rol del usuario usando RPC
     const { data: roleData, error: roleError } = await supabase
       .rpc('get_user_role_info', { user_id_param: user.id });
 
@@ -56,7 +114,7 @@ const authenticateToken = async (req, res, next) => {
         lastName: user.user_metadata?.last_name || 'Sin apellido',
         roleName: 'owner',
         roleId: 2,
-        permissions: ['team:read', 'team:update', 'player:read'],
+        permissions: ['team:read', 'team:create', 'team:update', 'player:read', 'player:create'],
         isActive: true
       };
     } else {
@@ -71,6 +129,7 @@ const authenticateToken = async (req, res, next) => {
         isActive: true
       };
     }
+    */
 
     // Verificar si el usuario está activo
     if (!req.user.isActive) {

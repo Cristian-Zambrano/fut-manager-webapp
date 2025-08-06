@@ -6,10 +6,11 @@ const { ResponseUtils, ValidationUtils } = require('../../shared/utils');
 
 const router = express.Router();
 
-// Inicializar Supabase con esquema público
+// Inicializar Supabase para usar funciones RPC en esquema public
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
+  // Sin especificar schema, usa 'public' por defecto donde están las funciones RPC
 );
 
 // Esquemas de validación
@@ -62,12 +63,13 @@ router.get('/', authenticateToken, async (req, res) => {
 
     let teams, error, count;
 
-    // Si es owner, obtener solo sus equipos
+    // Si es owner, obtener solo sus equipos usando RPC original
     if (req.user.roleName === 'owner') {
-      const { data, error: rpcError } = await supabase
+      console.log(`Getting teams for owner: ${req.user.id}`);
+      const { data: rpcData, error: rpcError } = await supabase
         .rpc('get_teams_by_owner', { owner_id_param: req.user.id });
       
-      teams = data || [];
+      teams = rpcData || [];
       error = rpcError;
       count = teams.length;
       
@@ -75,15 +77,15 @@ router.get('/', authenticateToken, async (req, res) => {
       const offset = (page - 1) * limit;
       teams = teams.slice(offset, offset + limit);
     } else {
-      // Si es admin, obtener todos los equipos con paginación
-      const { data, error: rpcError } = await supabase
+      // Si es admin, obtener todos los equipos con paginación usando RPC
+      const { data: rpcData, error: rpcError } = await supabase
         .rpc('get_all_teams', { 
           page_param: page, 
           limit_param: limit, 
           search_param: search 
         });
       
-      teams = data || [];
+      teams = rpcData || [];
       error = rpcError;
       count = teams.length > 0 ? teams[0].total_count : 0;
     }
@@ -96,7 +98,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const totalPages = Math.ceil(count / limit);
 
     ResponseUtils.success(res, {
-      teams: teams.map(team => ({
+      teams: (teams || []).map(team => ({
         id: team.id,
         name: team.name,
         logoUrl: team.logo_url,
@@ -111,7 +113,7 @@ router.get('/', authenticateToken, async (req, res) => {
       pagination: {
         currentPage: page,
         totalPages,
-        totalItems: count,
+        totalItems: count || 0,
         itemsPerPage: limit,
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1
@@ -277,15 +279,22 @@ router.post('/', authenticateToken, authorize(['admin', 'owner']), async (req, r
 
     // Solo owners pueden crear UN equipo, admins pueden crear múltiples
     if (req.user.roleName === 'owner') {
-      const { data: existingTeam } = await supabase
+      console.log(`Checking existing teams for owner: ${req.user.id}`);
+      const { data: existingTeam, error: checkError } = await supabase
         .rpc('get_teams_by_owner', { owner_id_param: req.user.id });
+
+      if (checkError) {
+        console.error('Error checking existing teams:', checkError);
+        return ResponseUtils.error(res, 'Error verificando equipos existentes', 500, 'DATABASE_ERROR');
+      }
 
       if (existingTeam && existingTeam.length > 0) {
         return ResponseUtils.error(res, 'Ya tienes un equipo registrado', 409, 'TEAM_LIMIT_EXCEEDED');
       }
     }
 
-    // Crear equipo usando RPC
+    // Crear equipo usando RPC original
+    console.log(`Creating team for user: ${req.user.id}, role: ${req.user.roleName}`);
     const { data: newTeam, error: insertError } = await supabase
       .rpc('create_team', {
         name_param: name.trim(),
