@@ -73,12 +73,15 @@ export const AuthProvider = ({ children }) => {
 
   // Verificar si el usuario tiene un rol específico
   const hasRole = (role) => {
-    return user?.roleName === role;
+    // Soportar tanto roleName como role para compatibilidad
+    const userRole = user?.roleName || user?.role;
+    return userRole === role;
   };
 
   // Verificar si el usuario tiene alguno de los roles especificados
   const hasAnyRole = (roles) => {
-    return roles.includes(user?.roleName);
+    const userRole = user?.roleName || user?.role;
+    return roles.includes(userRole);
   };
 
   // Verificar si es owner de un recurso específico

@@ -249,7 +249,7 @@ router.post('/login', async (req, res) => {
       email: authData.user.email,
       firstName: userProfile?.first_name || authData.user.user_metadata?.first_name,
       lastName: userProfile?.last_name || authData.user.user_metadata?.last_name,
-      role: userProfile?.roles?.name || 'owner',
+      roleName: userProfile?.roles?.name || 'owner',
       permissions: userProfile?.roles?.permissions || ['team:read'],
       emailConfirmed: authData.user.email_confirmed_at !== null
     };
@@ -508,7 +508,7 @@ router.get('/test-auth', async (req, res) => {
       email: user.email,
       firstName: userProfile?.first_name || user.user_metadata?.first_name || 'Sin nombre',
       lastName: userProfile?.last_name || user.user_metadata?.last_name || 'Sin apellido',
-      role: userProfile?.roles?.name || 'owner',
+      roleName: userProfile?.roles?.name || 'owner',
       roleId: userProfile?.role_id || 2,
       permissions: userProfile?.roles?.permissions || ['teams:read'],
       isActive: userProfile?.is_active ?? true,

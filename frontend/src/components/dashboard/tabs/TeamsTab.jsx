@@ -20,7 +20,7 @@ import TeamSanctionModal from '../modals/TeamSanctionModal';
 import ConfirmDialog from '../../common/ConfirmDialog';
 
 const TeamsTab = () => {
-  const { isAdmin, isOwner, isVocal } = useAuth();
+  const { isAdmin, isOwner, isVocal, user } = useAuth();
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

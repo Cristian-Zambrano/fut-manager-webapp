@@ -61,7 +61,7 @@ const teamSanctionSchema = Joi.object({
 router.get('/types', authenticateToken, async (req, res) => {
   try {
     const { data: sanctionTypes, error } = await supabase
-      .from('sanction_service.sanction_types')
+      .from('sanction_types')
       .select('*')
       .eq('is_active', true)
       .order('name');
@@ -273,7 +273,7 @@ router.post('/players', authenticateToken, authorize(['admin', 'vocal']), async 
 
     // Verificar que el tipo de sanción existe
     const { data: sanctionType, error: typeError } = await supabase
-      .from('sanction_service.sanction_types')
+      .from('sanction_types')
       .select('id, name, default_amount, default_duration_days')
       .eq('id', sanctionTypeId)
       .eq('is_active', true)
@@ -524,7 +524,7 @@ router.post('/teams', authenticateToken, authorize(['admin', 'vocal']), async (r
 
     // Verificar que el tipo de sanción existe
     const { data: sanctionType, error: typeError } = await supabase
-      .from('sanction_service.sanction_types')
+      .from('sanction_types')
       .select('id, name')
       .eq('id', sanctionTypeId)
       .eq('is_active', true)
