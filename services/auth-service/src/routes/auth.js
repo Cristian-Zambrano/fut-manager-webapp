@@ -140,8 +140,10 @@ router.post('/register', async (req, res) => {
 
     // Si el usuario se registró exitosamente
     if (authData.user) {
-      // El trigger automáticamente creará el perfil en user_profiles
-      // usando los datos de user_metadata
+      // El trigger auto_assign_owner_role se encargará automáticamente de:
+      // 1. Asignar el rol de owner en auth_service.user_roles
+      // 2. Crear el perfil en auth_service.user_profiles
+      console.log('Usuario registrado exitosamente. Trigger asignará rol automáticamente:', authData.user.id);
       
       ResponseUtils.success(res, {
         user: {
