@@ -6,6 +6,7 @@ require('dotenv').config();
 
 // Importar rutas
 const teamRoutes = require('./routes/teams');
+const playerRoutes = require('./routes/players');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -50,6 +51,7 @@ app.get('/health', (req, res) => {
 
 // Rutas
 app.use('/api/teams', teamRoutes);
+app.use('/api/players', playerRoutes);
 
 // Manejo de rutas no encontradas
 app.use('*', (req, res) => {
@@ -59,9 +61,6 @@ app.use('*', (req, res) => {
     code: 'ENDPOINT_NOT_FOUND'
   });
 });
-
-// Manejo global de errores
-app.use(errorHandler);
 
 // Iniciar servidor
 app.listen(PORT, () => {

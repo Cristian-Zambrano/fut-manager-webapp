@@ -33,40 +33,42 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Obtener información del perfil del usuario con su rol
-    const { data: userProfile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select(`
-        *,
-        roles (id, name, permissions)
-      `)
-      .eq('id', user.id)
-      .single();
+    // Para este sistema simple, obtenemos el rol desde los metadatos del usuario
+    // En el futuro se puede extender para tener una tabla de perfiles de usuario
+    const roleId = user.user_metadata?.role_id || 2; // Default to owner (2)
+    
+    // Obtener información del rol del usuario usando RPC (basado en user_id)
+    const { data: roleData, error: roleError } = await supabase
+      .rpc('get_user_role_info', { user_id_param: user.id });
 
-    if (profileError || !userProfile) {
-      // Si no hay perfil, crear uno básico (fallback)
-      console.warn('User profile not found for user:', user.id);
+    let roleInfo = null;
+    if (!roleError && roleData && roleData.length > 0) {
+      roleInfo = roleData[0];
+    }
+
+    if (!roleInfo) {
+      // Fallback a role owner si no se encuentra el rol en la tabla user_roles
+      console.warn('Role not found for user:', user.id, 'using default owner role');
       req.user = {
         id: user.id,
         email: user.email,
         firstName: user.user_metadata?.first_name || 'Sin nombre',
         lastName: user.user_metadata?.last_name || 'Sin apellido',
-        role: 'owner',
+        roleName: 'owner',
         roleId: 2,
-        permissions: ['teams:read', 'teams:update:own', 'sanctions:read:own'],
+        permissions: ['team:read', 'team:update', 'player:read'],
         isActive: true
       };
     } else {
       req.user = {
         id: user.id,
         email: user.email,
-        firstName: userProfile.first_name,
-        lastName: userProfile.last_name,
-        role: userProfile.roles?.name || 'owner',
-        roleId: userProfile.role_id,
-        permissions: userProfile.roles?.permissions || ['teams:read'],
-        isActive: userProfile.is_active,
-        teamId: userProfile.team_id
+        firstName: user.user_metadata?.first_name || 'Sin nombre',
+        lastName: user.user_metadata?.last_name || 'Sin apellido',
+        roleName: roleInfo.role_name,
+        roleId: roleInfo.role_id,
+        permissions: roleInfo.permissions || [],
+        isActive: true
       };
     }
 
@@ -98,20 +100,20 @@ const authenticateToken = async (req, res, next) => {
 const authorize = (allowedRoles = [], requiredPermissions = []) => {
   return (req, res, next) => {
     try {
-      const { role, permissions } = req.user;
+      const { roleName, permissions } = req.user;
 
       // Convertir a arrays si son strings
       const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
       const perms = Array.isArray(requiredPermissions) ? requiredPermissions : [requiredPermissions];
 
       // Verificar rol
-      if (roles.length > 0 && !roles.includes(role)) {
+      if (roles.length > 0 && !roles.includes(roleName)) {
         return res.status(403).json({
           success: false,
           message: 'No tienes permisos para realizar esta acción',
           code: 'INSUFFICIENT_ROLE',
           required_roles: roles,
-          current_role: role
+          current_role: roleName
         });
       }
 

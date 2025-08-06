@@ -17,26 +17,6 @@ CREATE SCHEMA IF NOT EXISTS audit_service;
 
 ### Auth Service Schema
 
-```sql
--- Tabla de usuarios
-CREATE TABLE auth_service.users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role_id INTEGER NOT NULL,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    birth_date DATE,
-    is_active BOOLEAN DEFAULT true,
-    email_verified BOOLEAN DEFAULT false,
-    verification_code VARCHAR(6),
-    verification_expires_at TIMESTAMP,
-    blocked_until TIMESTAMP,
-    failed_attempts INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
 -- Tabla de roles
 CREATE TABLE auth_service.roles (
     id SERIAL PRIMARY KEY,
@@ -60,7 +40,6 @@ CREATE TABLE auth_service.failed_attempts (
     user_agent TEXT,
     attempted_at TIMESTAMP DEFAULT NOW()
 );
-```
 
 ### Team Service Schema
 

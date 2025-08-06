@@ -6,7 +6,7 @@ const { ResponseUtils, ValidationUtils } = require('../../shared/utils');
 
 const router = express.Router();
 
-// Inicializar Supabase
+// Inicializar Supabase con esquema público
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -58,60 +58,39 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
     const { search } = req.query;
 
-    let query = supabase
-      .from('team_service.teams')
-      .select(`
-        id,
-        name,
-        logo_url,
-        founded_date,
-        description,
-        is_active,
-        created_at,
-        owner_id
-      `, { count: 'exact' })
-      .eq('is_active', true);
+    let teams, error, count;
 
-    // Filtrar por owner si no es admin
+    // Si es owner, obtener solo sus equipos
     if (req.user.roleName === 'owner') {
-      query = query.eq('owner_id', req.user.id);
+      const { data, error: rpcError } = await supabase
+        .rpc('get_teams_by_owner', { owner_id_param: req.user.id });
+      
+      teams = data || [];
+      error = rpcError;
+      count = teams.length;
+      
+      // Aplicar paginación manual para owner
+      const offset = (page - 1) * limit;
+      teams = teams.slice(offset, offset + limit);
+    } else {
+      // Si es admin, obtener todos los equipos con paginación
+      const { data, error: rpcError } = await supabase
+        .rpc('get_all_teams', { 
+          page_param: page, 
+          limit_param: limit, 
+          search_param: search 
+        });
+      
+      teams = data || [];
+      error = rpcError;
+      count = teams.length > 0 ? teams[0].total_count : 0;
     }
-
-    // Buscar por nombre si se especifica
-    if (search) {
-      query = query.ilike('name', `%${search}%`);
-    }
-
-    // Aplicar paginación
-    query = query
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    const { data: teams, error, count } = await query;
 
     if (error) {
       console.error('Error fetching teams:', error);
       return ResponseUtils.error(res, 'Error obteniendo equipos', 500, 'DATABASE_ERROR');
-    }
-
-    // Obtener conteo de jugadores por equipo
-    const teamIds = teams.map(team => team.id);
-    let playerCounts = {};
-    
-    if (teamIds.length > 0) {
-      const { data: playerCountData } = await supabase
-        .from('team_service.team_players')
-        .select('team_id')
-        .in('team_id', teamIds)
-        .eq('is_active', true);
-
-      // Contar jugadores por equipo
-      playerCountData?.forEach(record => {
-        playerCounts[record.team_id] = (playerCounts[record.team_id] || 0) + 1;
-      });
     }
 
     const totalPages = Math.ceil(count / limit);
@@ -126,7 +105,7 @@ router.get('/', authenticateToken, async (req, res) => {
         isActive: team.is_active,
         createdAt: team.created_at,
         ownerId: team.owner_id,
-        playerCount: playerCounts[team.id] || 0,
+        playerCount: 0, // TODO: Implementar conteo con RPC
         isOwner: team.owner_id === req.user.id
       })),
       pagination: {
@@ -171,7 +150,7 @@ router.get('/:teamId', authenticateToken, async (req, res) => {
     const { teamId } = req.params;
 
     let query = supabase
-      .from('team_service.teams')
+      .from('teams')
       .select(`
         id,
         name,
@@ -299,40 +278,22 @@ router.post('/', authenticateToken, authorize(['admin', 'owner']), async (req, r
     // Solo owners pueden crear UN equipo, admins pueden crear múltiples
     if (req.user.roleName === 'owner') {
       const { data: existingTeam } = await supabase
-        .from('team_service.teams')
-        .select('id')
-        .eq('owner_id', req.user.id)
-        .eq('is_active', true)
-        .single();
+        .rpc('get_teams_by_owner', { owner_id_param: req.user.id });
 
-      if (existingTeam) {
+      if (existingTeam && existingTeam.length > 0) {
         return ResponseUtils.error(res, 'Ya tienes un equipo registrado', 409, 'TEAM_LIMIT_EXCEEDED');
       }
     }
 
-    // Verificar que no existe otro equipo con el mismo nombre
-    const { data: existingName } = await supabase
-      .from('team_service.teams')
-      .select('id')
-      .eq('name', name.trim())
-      .eq('is_active', true)
-      .single();
-
-    if (existingName) {
-      return ResponseUtils.error(res, 'Ya existe un equipo con ese nombre', 409, 'TEAM_NAME_EXISTS');
-    }
-
-    // Crear equipo
+    // Crear equipo usando RPC
     const { data: newTeam, error: insertError } = await supabase
-      .from('team_service.teams')
-      .insert({
-        name: name.trim(),
-        owner_id: req.user.roleName === 'owner' ? req.user.id : null,
-        logo_url: logoUrl || null,
-        founded_date: foundedDate || null,
-        description: description?.trim() || null
+      .rpc('create_team', {
+        name_param: name.trim(),
+        owner_id_param: req.user.roleName === 'owner' ? req.user.id : null,
+        logo_url_param: logoUrl || null,
+        founded_date_param: foundedDate || null,
+        description_param: description?.trim() || null
       })
-      .select()
       .single();
 
     if (insertError) {
@@ -412,7 +373,7 @@ router.put('/:teamId', authenticateToken, async (req, res) => {
 
     // Verificar que el equipo existe y permisos
     const { data: team, error: teamError } = await supabase
-      .from('team_service.teams')
+      .from('teams')
       .select('id, name, owner_id')
       .eq('id', teamId)
       .eq('is_active', true)
@@ -432,7 +393,7 @@ router.put('/:teamId', authenticateToken, async (req, res) => {
     // Verificar nombre único si cambió
     if (name.trim() !== team.name) {
       const { data: existingName } = await supabase
-        .from('team_service.teams')
+        .from('teams')
         .select('id')
         .eq('name', name.trim())
         .eq('is_active', true)
@@ -446,7 +407,7 @@ router.put('/:teamId', authenticateToken, async (req, res) => {
 
     // Actualizar equipo
     const { data: updatedTeam, error: updateError } = await supabase
-      .from('team_service.teams')
+      .from('teams')
       .update({
         name: name.trim(),
         logo_url: logoUrl || null,
@@ -508,7 +469,7 @@ router.delete('/:teamId', authenticateToken, authorize(['admin']), async (req, r
 
     // Verificar que el equipo existe
     const { data: team, error: teamError } = await supabase
-      .from('team_service.teams')
+      .from('teams')
       .select('id, name')
       .eq('id', teamId)
       .eq('is_active', true)
@@ -520,7 +481,7 @@ router.delete('/:teamId', authenticateToken, authorize(['admin']), async (req, r
 
     // Desactivar equipo (soft delete)
     const { error: updateError } = await supabase
-      .from('team_service.teams')
+      .from('teams')
       .update({
         is_active: false,
         updated_at: new Date().toISOString()
@@ -551,3 +512,4 @@ router.delete('/:teamId', authenticateToken, authorize(['admin']), async (req, r
 });
 
 module.exports = router;
+
