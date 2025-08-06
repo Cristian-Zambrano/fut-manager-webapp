@@ -107,7 +107,7 @@ router.get('/', authenticateToken, async (req, res) => {
         isActive: team.is_active,
         createdAt: team.created_at,
         ownerId: team.owner_id,
-        playerCount: 0, // TODO: Implementar conteo con RPC
+        playerCount: parseInt(team.player_count) || 0,
         isOwner: team.owner_id === req.user.id
       })),
       pagination: {
