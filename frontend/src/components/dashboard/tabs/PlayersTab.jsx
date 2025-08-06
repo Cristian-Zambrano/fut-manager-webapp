@@ -23,6 +23,9 @@ import ConfirmDialog from '../../common/ConfirmDialog';
 
 const PlayersTab = () => {
   const { isAdmin, isOwner, isVocal, user } = useAuth();
+  // DEBUG: Mostrar el usuario y los flags de rol
+  console.log('Auth user:', user);
+  console.log('isAdmin:', isAdmin, 'isOwner:', isOwner, 'isVocal:', isVocal);
   const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [myTeam, setMyTeam] = useState(null);

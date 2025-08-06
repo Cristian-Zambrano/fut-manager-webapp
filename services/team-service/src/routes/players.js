@@ -76,13 +76,10 @@ const transferSchema = Joi.object({
  *       200:
  *         description: Lista de jugadores
  */
-router.get('/', authenticateToken, authorize(['admin']), async (req, res) => {
+router.get('/', authenticateToken, authorize(['admin', 'vocal']), async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-    const { search } = req.query;
 
+    const { search } = req.query;
     let query = supabase
       .from('players')
       .select(`
@@ -115,48 +112,75 @@ router.get('/', authenticateToken, authorize(['admin']), async (req, res) => {
       query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,identification.ilike.%${search}%`);
     }
 
-    // Aplicar paginación
-    query = query
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    const { data: players, error, count } = await query;
-
-    if (error) {
-      console.error('Error fetching players:', error);
-      return ResponseUtils.error(res, 'Error obteniendo jugadores', 500, 'DATABASE_ERROR');
-    }
-
-    const totalPages = Math.ceil(count / limit);
-
-    ResponseUtils.success(res, {
-      players: players.map(player => ({
-        id: player.id,
-        firstName: player.first_name,
-        lastName: player.last_name,
-        birthDate: player.birth_date,
-        position: player.position,
-        jerseyNumber: player.jersey_number,
-        identification: player.identification,
-        phone: player.phone,
-        emergencyContact: player.emergency_contact,
-        isActive: player.is_active,
-        createdAt: player.created_at,
-        team: {
-          id: player.team_players[0]?.teams?.id,
-          name: player.team_players[0]?.teams?.name,
-          joinedAt: player.team_players[0]?.joined_at
-        }
-      })),
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalItems: count,
-        itemsPerPage: limit,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1
+    // Si el usuario es admin, usar paginación
+    if (req.user.roleName === 'admin') {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const offset = (page - 1) * limit;
+      query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+      const { data: players, error, count } = await query;
+      if (error) {
+        console.error('Error fetching players:', error);
+        return ResponseUtils.error(res, 'Error obteniendo jugadores', 500, 'DATABASE_ERROR');
       }
-    });
+      const totalPages = Math.ceil(count / limit);
+      ResponseUtils.success(res, {
+        players: players.map(player => ({
+          id: player.id,
+          firstName: player.first_name,
+          lastName: player.last_name,
+          birthDate: player.birth_date,
+          position: player.position,
+          jerseyNumber: player.jersey_number,
+          identification: player.identification,
+          phone: player.phone,
+          emergencyContact: player.emergency_contact,
+          isActive: player.is_active,
+          createdAt: player.created_at,
+          team: {
+            id: player.team_players[0]?.teams?.id,
+            name: player.team_players[0]?.teams?.name,
+            joinedAt: player.team_players[0]?.joined_at
+          }
+        })),
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: count,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      });
+    } else {
+      // Si es vocal, devolver todos los jugadores sin paginación
+      query = query.order('created_at', { ascending: false });
+      const { data: players, error } = await query;
+      if (error) {
+        console.error('Error fetching players:', error);
+        return ResponseUtils.error(res, 'Error obteniendo jugadores', 500, 'DATABASE_ERROR');
+      }
+      ResponseUtils.success(res, {
+        players: (players || []).map(player => ({
+          id: player.id,
+          firstName: player.first_name,
+          lastName: player.last_name,
+          birthDate: player.birth_date,
+          position: player.position,
+          jerseyNumber: player.jersey_number,
+          identification: player.identification,
+          phone: player.phone,
+          emergencyContact: player.emergency_contact,
+          isActive: player.is_active,
+          createdAt: player.created_at,
+          team: {
+            id: player.team_players[0]?.teams?.id,
+            name: player.team_players[0]?.teams?.name,
+            joinedAt: player.team_players[0]?.joined_at
+          }
+        }))
+      });
+    }
 
   } catch (error) {
     console.error('Get players error:', error);
@@ -738,6 +762,8 @@ router.post('/:playerId/transfer', authenticateToken, authorize(['admin']), asyn
     ResponseUtils.error(res, 'Error interno del servidor', 500, 'INTERNAL_ERROR');
   }
 });
+
+
 
 module.exports = router;
 

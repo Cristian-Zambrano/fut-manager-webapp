@@ -3,7 +3,12 @@ import api from './api';
 export const authService = {
   // Registro de usuario
   register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
+    // Enviar los datos como objeto plano, roleId como número
+    const cleanUserData = {
+      ...userData,
+      roleId: parseInt(userData.roleId)
+    };
+    const response = await api.post('/auth/register', cleanUserData);
     
     if (response.success && response.data?.token) {
       localStorage.setItem('token', response.data.token);

@@ -1,20 +1,9 @@
 import api from './api';
 
 export const playerService = {
-  // Obtener todos los jugadores (admin)
-  getAllPlayers: async (params = {}) => {
-    const queryParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, value);
-      }
-    });
-    
-    const queryString = queryParams.toString();
-    const url = queryString ? `/players?${queryString}` : '/players';
-    
-    return await api.get(url);
+  // Obtener todos los jugadores de todos los equipos (admin y vocal)
+  getAllPlayers: async () => {
+    return await api.get('/players');
   },
 
   // Obtener jugador por ID
